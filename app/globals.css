@@ -1,26 +1,217 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ------------------------------------------------------------------
+   VCG Intranet design tokens — white app surface, cool-gray planes,
+   violet brand accent, charcoal for heavy data marks.
+   ------------------------------------------------------------------ */
+@theme {
+  --color-shell: #ffffff;
+  --color-plane: #f6f7fb;
+  --color-ink: #15171c;
+  --color-ink-2: #555a69;
+  --color-muted: #9a9fad;
+  --color-line: #eceef4;
+  --color-line-2: #e2e5ee;
+
+  --color-brand: #5b2be0;
+  --color-brand-600: #4a1fc4;
+  --color-brand-soft: #efe9fd;
+  --color-violet: #9b4dca;
+  --color-peri: #a3a5f5;
+  --color-lav: #dcdaf6;
+  --color-charcoal: #2f3335;
+
+  --color-good: #0f8a3c;
+  --color-good-soft: #e3f6ea;
+  --color-warn: #b07600;
+  --color-warn-soft: #fff4d6;
+  --color-bad: #d03b3b;
+  --color-bad-soft: #fde8e8;
+  --color-teal: #0e8f82;
+  --color-teal-soft: #e0f4f1;
+
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-card: 0 1px 2px rgb(20 23 40 / 0.04), 0 8px 24px -12px rgb(40 46 90 / 0.12);
+  --shadow-pop: 0 24px 60px -20px rgb(30 30 80 / 0.35);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--color-shell);
+  color: var(--color-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- reusable component classes ---------- */
+@layer components {
+  .card {
+    background: var(--color-shell);
+    border-radius: 22px;
+    box-shadow: var(--shadow-card);
+  }
+  .eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 700;
+    background: var(--color-plane);
+    color: var(--color-ink);
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: var(--color-lav);
+  }
+  .btn:disabled,
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .btn-dark {
+    background: var(--color-ink);
+    color: #fff;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+  .btn-dark:hover {
+    background: var(--color-brand);
+  }
+  .btn-brand {
+    background: var(--color-brand);
+    color: #fff;
+  }
+  .btn-brand:hover {
+    background: var(--color-brand-600);
+  }
+  .btn-sm {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 11.5px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--color-plane);
+    color: var(--color-ink-2);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .field {
+    width: 100%;
+    border: 1px solid var(--color-line-2);
+    border-radius: 12px;
+    background: #fff;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--color-ink);
+    outline: none;
+  }
+  .field:focus {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px var(--color-brand-soft);
+  }
+  .field-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .seg {
+    display: inline-flex;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--color-plane);
+  }
+  .seg > button {
+    flex-shrink: 0;
+    height: 30px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-ink-2);
+    cursor: pointer;
+  }
+  .seg > button[aria-pressed="true"] {
+    background: #fff;
+    color: var(--color-ink);
+    box-shadow: var(--shadow-card);
+  }
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-2) transparent;
+  }
+}
+
+/* Generated report HTML from the Master Reports table */
+.report-html p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-ink-2);
+}
+.report-html strong {
+  color: var(--color-ink);
+}
+.report-html .rd-heading {
+  margin: 18px 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+.report-html table {
+  width: 100%;
+  font-size: 12px;
+}
+.report-html th,
+.report-html td {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-pop {
+  animation: pop-in 0.18s ease-out;
 }

@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VCG Intranet
 
-## Getting Started
+Next.js rebuild of the two VCG dashboards (`VCG_PICS_Operations.html` and `VCG_Productivity_Center.html`) in one app.
 
-First, run the development server:
+| Route | What it shows |
+|---|---|
+| `/` | Home overview: MVP build progress, this week's meetings, P.I.C.S by type, roadmap status by phase, active roster |
+| `/pics` | P.I.C.S Operations: type mix, stage filter, record cards → roadmap detail (phases, meetings, heatmaps, review rounds, editable week items), calendar |
+| `/productivity` | Productivity Center: task stats, team capacity (distribution, load heatmap, availability), schedules, checklists (6-status model, submit), reports (Master Reports), checklist summaries (review/approve) |
+
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm run build && npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Data
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The data is a snapshot of the Airtable base **VCG Intranet** (`appLH1D7ME6mU1zgE`), taken from the original HTML files:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `lib/pics-records.ts`: P.I.C.S records, roadmap rows, meetings, review rounds, checklist
+- `lib/productivity-data.ts`: Team Members, Tasks Planning counts, Weekly Schedules, Task Checklists, Meetings Master, Master Reports
 
-## Learn More
+Edits made in the UI stay in the browser session. To go live:
 
-To learn more about Next.js, take a look at the following resources:
+1. Create an Airtable Personal Access Token (`data.records:read`, `data.records:write`, `schema.bases:read`) with access to the base.
+2. Put it in `.env.local` as `AIRTABLE_TOKEN=...`. **Never expose it to the browser.**
+3. Add route handlers (e.g. `app/api/pics/route.ts`) that call Airtable on the server, then swap the seed imports for fetches to those routes.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/                  routes + layout + design tokens (globals.css)
+components/AppShell   icon rail, top bar, profile side panel
+components/ui         toast, modal, avatar, pills, select, collapsible
+components/charts     donut, grouped bars, stat tile, validated palette
+components/pics       P.I.C.S Operations page, record detail, calendar
+components/productivity  Productivity Center page, capacity, modals
+lib/                  types, utils, seed data
+```
