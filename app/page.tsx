@@ -1,5 +1,5 @@
-import { HomeDashboard } from "@/components/home/HomeDashboard";
+import { HomeCommand } from "@/components/home/HomeCommand";
 
 export default function Page() {
-  return <HomeDashboard />;
+  return <HomeCommand view="overview" />;
 }

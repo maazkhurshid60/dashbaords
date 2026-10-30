@@ -1,5 +1,5 @@
-// Snapshot of the VCG Intranet P.I.C.S records (Airtable), ported from VCG_PICS_Operations.html.
-// Replace with a live fetch through a server route once the Airtable token is wired up.
+// GENERATED from VCG_PICS_Operations (4).html (.gen/VCG_PICS_Operations.js) — do not hand-edit.
+// Snapshot of the VCG Intranet P.I.C.S records (Airtable). Replace with a live fetch through a server route once the Airtable token is wired up.
 import type { PicsRecord } from "./types";
 
 export const PICS_SEED: PicsRecord[] = [

@@ -1,21 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Donut, DonutLegend, HEAT, SERIES, type DonutDatum } from "@/components/charts";
-import { IconChevron, IconPie } from "@/components/icons";
+import { Donut, DonutLegend, GroupedBars, HEAT, PAIR, SERIES, type DonutDatum } from "@/components/charts";
+import { IconChevron, IconChevronLeft, IconPie } from "@/components/icons";
 import { Avatar, CardHead, Select } from "@/components/ui";
-import { ACTIVE_MEMBERS, DAILY_LOAD, TASKS_BY_MEMBER } from "@/lib/productivity-data";
-import type { Member } from "@/lib/types";
+import { ACTIVE_MEMBERS, AVAILABILITY_SET } from "@/lib/productivity-data";
+import { capWeekLabels, capWeekRangeLabel, capWeekSublabels, dailyLoadInWeek, tasksByMemberInWeek } from "@/lib/productivity-logic";
+import type { Member } from "@/lib/productivity-types";
 import { cx, plural } from "@/lib/utils";
-
-export const WEEK_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-export const WEEK_SUBLABELS = ["Sep 21", "Sep 22", "Sep 23", "Sep 24", "Sep 25"];
+import { IconChevronRight } from "./shared";
 
 const DEPTS = [...new Set(ACTIVE_MEMBERS.map((m) => m.dept))].sort();
 const DEPT_OPTIONS = [{ value: "all", label: "All departments" }, ...DEPTS.map((d) => ({ value: d, label: d }))];
 
-/* Color follows the member, never their rank — fixed by roster order. */
-const MEMBER_COLOR = Object.fromEntries(ACTIVE_MEMBERS.map((m, i) => [m.id, SERIES[i % SERIES.length]]));
+/* Color follows the member, never their rank — fixed by roster order (7 members, 7 series colors). */
+const MEMBER_COLOR = Object.fromEntries(ACTIVE_MEMBERS.map((m, i) => [m.id, SERIES[Math.min(i, SERIES.length - 1)]]));
 
 const membersIn = (dept: string) => (dept === "all" ? ACTIVE_MEMBERS : ACTIVE_MEMBERS.filter((m) => m.dept === dept));
 const shortName = (n: string) =>
@@ -24,26 +23,43 @@ const shortName = (n: string) =>
     .map((w, i) => (i === 0 ? w : w[0] + "."))
     .join(" ");
 
+type CapTab = "overview" | "heatmap" | "availability";
+
+/** Team Capacity Dashboard — navigable Mon–Fri weeks relative to the dataset's "today" (Week 39 = offset 0). */
 export function CapacityPanel() {
-  const [tab, setTab] = useState<"overview" | "heatmap" | "availability">("overview");
+  const [tab, setTab] = useState<CapTab>("overview");
+  const [week, setWeek] = useState(0);
+  const range = capWeekRangeLabel(week);
   return (
     <section className="card p-6">
       <CardHead
         icon={<IconPie width={20} height={20} />}
-        eyebrow="Active roster · Week 39"
-        title="Team Capacity"
-        sub="Task counts and scheduled hours for the people currently working."
+        eyebrow="Active roster"
+        title="Team Capacity Dashboard"
+        sub="Task counts & hours, by week."
         right={
-          <div className="flex items-center gap-2" title="The snapshot covers Week 39 only — other weeks load once the Airtable sync is live">
-            <button type="button" className="btn btn-sm" disabled aria-disabled="true">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="btn btn-sm" disabled={week === 0} onClick={() => setWeek(0)}>
               Today
             </button>
-            <button type="button" disabled aria-label="Previous week" className="grid size-8 place-items-center rounded-full bg-plane text-muted">
-              <IconChevron width={14} height={14} className="rotate-90" />
+            <button
+              type="button"
+              aria-label="Previous week"
+              onClick={() => setWeek((w) => w - 1)}
+              className="grid size-8 place-items-center rounded-full bg-plane text-ink-2 hover:bg-lav"
+            >
+              <IconChevronLeft width={14} height={14} />
             </button>
-            <span className="chip bg-ink text-white">Sep 21 – Sep 25</span>
-            <button type="button" disabled aria-label="Next week" className="grid size-8 place-items-center rounded-full bg-plane text-muted">
-              <IconChevron width={14} height={14} className="-rotate-90" />
+            <span className="chip bg-ink text-white" aria-live="polite">
+              {range}
+            </span>
+            <button
+              type="button"
+              aria-label="Next week"
+              onClick={() => setWeek((w) => w + 1)}
+              className="grid size-8 place-items-center rounded-full bg-plane text-ink-2 hover:bg-lav"
+            >
+              <IconChevronRight width={14} height={14} />
             </button>
           </div>
         }
@@ -61,39 +77,47 @@ export function CapacityPanel() {
           </button>
         ))}
       </div>
+      {/* Mounted together so each sub-tab keeps its department filter and collapsed groups. */}
       <div className="mt-6">
-        {tab === "overview" && <Overview />}
-        {tab === "heatmap" && <LoadHeatmap />}
-        {tab === "availability" && <Availability />}
+        <div hidden={tab !== "overview"}>
+          <Overview week={week} />
+        </div>
+        <div hidden={tab !== "heatmap"}>
+          <LoadHeatmap week={week} />
+        </div>
+        <div hidden={tab !== "availability"}>
+          <Availability week={week} />
+        </div>
       </div>
     </section>
   );
 }
 
-function Overview() {
+function Overview({ week }: { week: number }) {
   const [dept, setDept] = useState("all");
+  const counts = tasksByMemberInWeek(week);
   const dist: DonutDatum[] = membersIn(dept)
-    .map((m) => ({ key: m.id, label: m.name, sub: m.dept, value: TASKS_BY_MEMBER[m.id] ?? 0, color: MEMBER_COLOR[m.id] }))
+    .map((m) => ({ key: m.id, label: m.name, sub: m.dept, value: counts[m.id] ?? 0, color: MEMBER_COLOR[m.id] }))
     .filter((d) => d.value > 0)
     .sort((a, b) => b.value - a.value);
   const total = dist.reduce((s, d) => s + d.value, 0);
-
-  const tasksMax = Math.max(...ACTIVE_MEMBERS.map((m) => TASKS_BY_MEMBER[m.id] ?? 0));
-  const hoursMax = Math.max(...ACTIVE_MEMBERS.map((m) => m.weeklyHours ?? 0));
+  const barMembers = ACTIVE_MEMBERS.filter((m) => (counts[m.id] ?? 0) > 0 || m.weeklyHours);
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
-      <div>
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[14px] font-extrabold">Task distribution by member</div>
-            <div className="text-[12px] text-muted">Tasks due this month · {total} tasks</div>
+            <div className="text-[12px] text-muted">
+              Tasks due {capWeekRangeLabel(week)} · {plural(total, "task")}
+            </div>
           </div>
           <Select label="Department" value={dept} onChange={setDept} options={DEPT_OPTIONS} />
         </div>
         {dist.length ? (
           <div className="mt-6 grid items-center gap-6 sm:grid-cols-[200px_minmax(0,1fr)]">
-            <Donut data={dist} size={200} centerLabel="tasks this month" />
+            <Donut data={dist} size={200} centerLabel="tasks this week" />
             {dept === "all" ? (
               <div className="space-y-3">
                 {[...new Set(dist.map((d) => d.sub!))].map((dp) => (
@@ -108,60 +132,38 @@ function Overview() {
             )}
           </div>
         ) : (
-          <div className="mt-6 rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">No tasks for this department.</div>
+          <div className="mt-6 rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">No tasks due this week for this department.</div>
         )}
       </div>
 
-      {/* Two single-series charts instead of one mixed-unit chart */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
-        <BarList
-          title="Tasks assigned"
-          unit="tasks"
-          color={SERIES[0]}
-          rows={ACTIVE_MEMBERS.map((m) => ({ m, v: TASKS_BY_MEMBER[m.id] ?? 0 }))}
-          max={tasksMax}
-        />
-        <BarList
-          title="Weekly hours scheduled"
-          unit="h"
-          color="#a3a5f5"
-          rows={ACTIVE_MEMBERS.map((m) => ({ m, v: m.weeklyHours }))}
-          max={hoursMax}
-        />
+      <div className="min-w-0">
+        <div className="text-[14px] font-extrabold">Tasks assigned vs. weekly hours</div>
+        <div className="mb-4 text-[12px] text-muted">Tasks due this week next to recurring weekly hours — plain counts, no ratio. Hover a pair for exact numbers.</div>
+        {barMembers.length ? (
+          <GroupedBars
+            series={["Tasks due this week", "Weekly hours"]}
+            colors={[...PAIR]}
+            groups={barMembers.map((m) => {
+              const t = counts[m.id] ?? 0;
+              const h = m.weeklyHours ?? 0;
+              return {
+                key: m.id,
+                label: shortName(m.name),
+                values: [t, h],
+                tip: (
+                  <>
+                    <div className="font-bold">{m.name}</div>
+                    <div>{plural(t, "task")} assigned</div>
+                    <div>{h}h/week scheduled</div>
+                  </>
+                ),
+              };
+            })}
+          />
+        ) : (
+          <div className="rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">No tasks or hours this week.</div>
+        )}
       </div>
-    </div>
-  );
-}
-
-function BarList({
-  title,
-  unit,
-  color,
-  rows,
-  max,
-}: {
-  title: string;
-  unit: string;
-  color: string;
-  rows: { m: Member; v: number | null }[];
-  max: number;
-}) {
-  return (
-    <div>
-      <div className="text-[14px] font-extrabold">{title}</div>
-      <ul className="mt-4 space-y-2.5">
-        {[...rows]
-          .sort((a, b) => (b.v ?? -1) - (a.v ?? -1))
-          .map(({ m, v }) => (
-            <li key={m.id} className="grid grid-cols-[84px_minmax(0,1fr)_44px] items-center gap-2.5" title={`${m.name}: ${v ?? "not set"}${v != null ? " " + unit : ""}`}>
-              <span className="truncate text-[11.5px] font-semibold text-ink-2">{shortName(m.name)}</span>
-              <span className="h-3 overflow-hidden rounded-full bg-plane">
-                <span className="block h-full rounded-full" style={{ width: `${((v ?? 0) / max) * 100}%`, background: color }} />
-              </span>
-              <span className="text-right text-[11.5px] font-bold tabular-nums">{v == null ? "—" : `${v}${unit === "h" ? "h" : ""}`}</span>
-            </li>
-          ))}
-      </ul>
     </div>
   );
 }
@@ -171,6 +173,7 @@ function loadTone(n: number) {
 }
 
 function DeptTable({
+  week,
   dept,
   setDept,
   title,
@@ -181,6 +184,7 @@ function DeptTable({
   memberSub,
   legend,
 }: {
+  week: number;
   dept: string;
   setDept: (v: string) => void;
   title: string;
@@ -191,7 +195,8 @@ function DeptTable({
   memberSub: (m: Member) => string;
   legend: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const labels = capWeekLabels(week);
   const members = membersIn(dept);
   const groups = [...new Set(members.map((m) => m.dept))].sort().map((d) => ({ d, ms: members.filter((m) => m.dept === d) }));
   const toggle = (d: string) =>
@@ -206,7 +211,9 @@ function DeptTable({
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[14px] font-extrabold">{title}</div>
+          <div className="text-[14px] font-extrabold">
+            {title} — {capWeekRangeLabel(week)}
+          </div>
           <div className="text-[12px] text-muted">{sub}</div>
         </div>
         <Select label="Department" value={dept} onChange={setDept} options={DEPT_OPTIONS} />
@@ -216,13 +223,16 @@ function DeptTable({
           <thead>
             <tr>
               <th className="w-[200px]" />
-              {WEEK_LABELS.map((l, i) => (
-                <th key={l} className="text-center">
+              {labels.map((l, i) => (
+                <th key={i} className="text-center">
                   <div className="text-[11px] font-extrabold uppercase tracking-wider">{l}</div>
                   <div className="text-[10.5px] font-medium text-muted">{colSub(i)}</div>
                 </th>
               ))}
-              <th className="text-center text-[11px] font-extrabold uppercase tracking-wider">Week</th>
+              <th className="text-center">
+                <div className="text-[11px] font-extrabold uppercase tracking-wider">Week</div>
+                <div className="text-[10.5px] font-medium text-muted">Total</div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -244,7 +254,7 @@ function DeptTable({
                         </div>
                       </div>
                     </td>
-                    {WEEK_LABELS.map((_, i) => (
+                    {labels.map((_, i) => (
                       <td key={i}>{cell(m, i)}</td>
                     ))}
                     <td className="text-center text-[15px] font-extrabold tabular-nums">{total(m)}</td>
@@ -260,19 +270,7 @@ function DeptTable({
   );
 }
 
-function DeptRows({
-  dept,
-  count,
-  open,
-  onToggle,
-  rows,
-}: {
-  dept: string;
-  count: number;
-  open: boolean;
-  onToggle: () => void;
-  rows: ReactNode[];
-}) {
+function DeptRows({ dept, count, open, onToggle, rows }: { dept: string; count: number; open: boolean; onToggle: () => void; rows: ReactNode[] }) {
   return (
     <>
       <tr>
@@ -294,28 +292,30 @@ function DeptRows({
   );
 }
 
-function LoadHeatmap() {
+function LoadHeatmap({ week }: { week: number }) {
   const [dept, setDept] = useState("all");
+  const loads = dailyLoadInWeek(week);
+  const sublabels = capWeekSublabels(week);
+  const labels = capWeekLabels(week);
+  const sum = (m: Member) => (loads[m.id] ?? []).reduce((a, b) => a + b, 0);
   return (
     <DeptTable
+      week={week}
       dept={dept}
       setDept={setDept}
       title="Weekly load heatmap"
-      sub="Each cell is a plain count of tasks due plus meetings that day."
-      colSub={(i) => WEEK_SUBLABELS[i]}
-      memberSub={(m) => {
-        const t = (DAILY_LOAD[m.id] ?? []).reduce((a, b) => a + b, 0);
-        return t ? `${t} this week` : "Nothing due";
-      }}
-      total={(m) => (DAILY_LOAD[m.id] ?? []).reduce((a, b) => a + b, 0)}
+      sub="Each cell is a plain count of tasks due plus meetings that day — no formula. Grouped by department."
+      colSub={(i) => sublabels[i]}
+      memberSub={(m) => (sum(m) ? `${sum(m)} this week` : "Nothing due")}
+      total={sum}
       cell={(m, i) => {
-        const n = (DAILY_LOAD[m.id] ?? [0, 0, 0, 0, 0])[i];
+        const n = (loads[m.id] ?? [0, 0, 0, 0, 0])[i];
         const t = loadTone(n);
         return (
           <div
             className="grid h-12 place-items-center rounded-xl text-[14px] font-extrabold tabular-nums"
             style={{ background: t.bg, color: t.fg }}
-            title={`${m.name} · ${WEEK_LABELS[i]}: ${n}`}
+            title={`${m.name} · ${labels[i]} ${sublabels[i]}: ${n}`}
           >
             {n || "–"}
           </div>
@@ -324,15 +324,17 @@ function LoadHeatmap() {
       legend={
         <>
           <span>Load:</span>
-          {[
-            ["0", HEAT[0]],
-            ["1–2", HEAT[1]],
-            ["3–4", HEAT[2]],
-            ["5+", HEAT[3]],
-          ].map(([l, t]) => (
-            <span key={l as string} className="flex items-center gap-1.5">
-              <span className="size-3 rounded" style={{ background: (t as (typeof HEAT)[number]).bg }} />
-              {l as string}
+          {(
+            [
+              ["0", HEAT[0]],
+              ["1–2", HEAT[1]],
+              ["3–4", HEAT[2]],
+              ["5+", HEAT[3]],
+            ] as const
+          ).map(([l, t]) => (
+            <span key={l} className="flex items-center gap-1.5">
+              <span className="size-3 rounded" style={{ background: t.bg }} />
+              {l}
             </span>
           ))}
         </>
@@ -341,29 +343,47 @@ function LoadHeatmap() {
   );
 }
 
-function Availability() {
+function Availability({ week }: { week: number }) {
   const [dept, setDept] = useState("all");
   return (
     <div>
       <DeptTable
+        week={week}
         dept={dept}
         setDept={setDept}
         title="Team availability"
-        sub="Recurring Monday–Friday hours (EST) from the Team Availability table."
+        sub="Each cell is that person's recurring Monday–Friday hours (EST) from the Team Availability table."
         colSub={() => "Recurring"}
         memberSub={() => "No hours set"}
         total={() => 0}
         cell={() => (
-          <div className="grid h-12 place-items-center rounded-xl border border-dashed border-line-2 text-[10.5px] font-semibold text-muted">
-            No hours
-          </div>
+          <div className="grid h-12 place-items-center rounded-xl border border-dashed border-line-2 text-[10.5px] font-semibold text-muted">No hours set</div>
         )}
-        legend={<span>Availability bands: 1–4h · 5–8h · 9h+ per day</span>}
+        legend={
+          <>
+            <span>Availability:</span>
+            {(
+              [
+                ["No hours set", HEAT[0]],
+                ["1–4h/day", HEAT[1]],
+                ["5–8h/day", HEAT[2]],
+                ["9h+/day", HEAT[3]],
+              ] as const
+            ).map(([l, t]) => (
+              <span key={l} className="flex items-center gap-1.5">
+                <span className="size-3 rounded" style={{ background: t.bg }} />
+                {l}
+              </span>
+            ))}
+          </>
+        }
       />
-      <p className="mt-4 rounded-2xl bg-warn-soft px-4 py-3 text-[12px] leading-relaxed text-warn">
-        No active member has a Start Time / End Time on their Team Availability record in Airtable yet, so every cell reads
-        &quot;No hours&quot;. This mirrors the base as it stands today.
-      </p>
+      {!AVAILABILITY_SET && (
+        <p className="mt-4 rounded-2xl bg-warn-soft px-4 py-3 text-[12px] leading-relaxed text-warn">
+          No active member has a Start Time / End Time on their Team Availability record in Airtable yet, so every cell reads &quot;No
+          hours set&quot;. This mirrors the base as it stands today.
+        </p>
+      )}
     </div>
   );
 }

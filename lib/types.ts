@@ -1,6 +1,6 @@
 /* Shapes mirror the Airtable tables behind the VCG Intranet dashboards. */
 
-export type PicsType = "Project" | "Initiative" | "Campaign" | "Sprint";
+export type PicsType = "Project" | "Initiative" | "Campaign" | "Sprint" | "BAU" | "Milestone";
 
 export interface RoadmapRow {
   label: string;
@@ -9,6 +9,8 @@ export interface RoadmapRow {
   phase?: string;
   stage?: string;
   status?: string;
+  /** Task Planning row this roadmap row is mirrored into (session sync). */
+  tpId?: string;
 }
 
 export interface PicsMeeting {
@@ -67,12 +69,17 @@ export interface PicsRecord {
   meetingCount: number;
   activityCount: number;
   parentId?: string;
-  hierarchy?: "Child" | "Sub-child";
+  hierarchy?: "Parent" | "Child" | "Sub-child";
   childIds?: string[];
   roadmapRows: RoadmapRow[];
   meetings?: PicsMeeting[];
   reviewRounds?: ReviewRound[];
   checklist: ChecklistItem[];
+  overview?: string;
+  stakeholders?: string;
+  briefingLink?: string | null;
+  liveSiteUrl?: string | null;
+  active?: boolean;
 }
 
 export interface Member {

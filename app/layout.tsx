@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type React from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { ToastProvider } from "@/components/ui";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
   description: "VCG operations and productivity dashboards, backed by the VCG Intranet Airtable base.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${jakarta.variable} antialiased`}>
       <body className="min-h-screen">

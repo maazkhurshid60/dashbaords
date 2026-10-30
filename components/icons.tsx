@@ -177,3 +177,28 @@ export const IconChevronLeft = (p: P) => (
     <path d="m15 6-6 6 6 6" />
   </Base>
 );
+export const IconCube = (p: P) => (
+  <Base {...p}>
+    <path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z" />
+    <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+  </Base>
+);
+export const IconChat = (p: P) => (
+  <Base {...p}>
+    <path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 3.5V6a1 1 0 0 1 1-1Z" />
+    <path d="M8.5 10h7M8.5 13h4.5" />
+  </Base>
+);
+export const IconMegaphone = (p: P) => (
+  <Base {...p}>
+    <path d="M4 10v4a1 1 0 0 0 1 1h2l8 4V5L7 9H5a1 1 0 0 0-1 1Z" />
+    <path d="M18.5 9.5a3.5 3.5 0 0 1 0 5M8 15l1 5" />
+  </Base>
+);
+export const IconImage = (p: P) => (
+  <Base {...p}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="m20.5 16-5-5-8.5 8.5" />
+  </Base>
+);

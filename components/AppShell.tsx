@@ -7,7 +7,12 @@ import {
   IconBell,
   IconBook,
   IconBuilding,
+  IconChat,
   IconCommand,
+  IconCube,
+  IconDoc,
+  IconImage,
+  IconMegaphone,
   IconGrid,
   IconHeart,
   IconLayers,
@@ -25,23 +30,28 @@ import { cx } from "@/lib/utils";
 export const AIRTABLE_BASE_URL = "https://airtable.com/appLH1D7ME6mU1zgE";
 
 /* Same nav as the original intranet pages. Items without an href are pages
-   that weren't part of this handoff (Home Command, ANT Connector, …). */
+   the client hasn't handed over yet (ANT Connector, Social Impact, …). */
 const NAV: { href?: string; label: string; Icon: typeof IconGrid; mobile?: string }[] = [
   { href: "/", label: "Home", Icon: IconGrid, mobile: "Home" },
-  { label: "Departments", Icon: IconBuilding },
-  { label: "Tools", Icon: IconTool },
-  { label: "Team Resources", Icon: IconBook },
-  { label: "Home Command", Icon: IconCommand },
+  { href: "/departments", label: "Departments", Icon: IconBuilding },
+  { href: "/tools", label: "Tools", Icon: IconTool },
+  { href: "/resources", label: "Team Resources", Icon: IconBook },
   { label: "ANT Connector", Icon: IconTarget },
-  { label: "Social Impact", Icon: IconHeart },
-  { href: "/pics", label: "Operations", Icon: IconLayers, mobile: "P.I.C.S" },
+  { href: "/pics", label: "Operations", Icon: IconLayers, mobile: "Ops" },
   { href: "/productivity", label: "Productivity", Icon: IconPie, mobile: "Productivity" },
+  { href: "/product", label: "Product", Icon: IconCube, mobile: "Product" },
+  { href: "/communications", label: "Communications", Icon: IconChat, mobile: "Comms" },
+  { label: "Marketing & Sales", Icon: IconMegaphone },
+  { label: "Social Impact", Icon: IconHeart },
+  { label: "Briefs Hub", Icon: IconDoc },
+  { label: "DAM", Icon: IconImage },
+  { label: "Automations", Icon: IconCommand },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
-  const isActive = (href?: string) => !!href && (href === "/" ? path === "/" : path.startsWith(href));
+  const isActive = (href?: string) => !!href && (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"));
 
   return (
     <div className="flex min-h-screen bg-shell">
@@ -140,15 +150,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile bottom nav */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-line bg-white/95 px-4 py-2 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-line bg-white/95 px-2 py-2 backdrop-blur md:hidden"
       >
-        {NAV.filter((n) => n.href).map(({ href, mobile, Icon }) => (
+        {NAV.filter((n) => n.mobile).map(({ href, mobile, Icon }) => (
           <Link
             key={href}
             href={href!}
             aria-current={isActive(href) ? "page" : undefined}
             className={cx(
-              "flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[10.5px] font-bold",
+              "flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[10px] font-bold",
               isActive(href) ? "bg-brand-soft text-brand" : "text-muted",
             )}
           >
@@ -238,8 +248,11 @@ export function PageFooter({ meta }: { meta: string }) {
         <a href={AIRTABLE_BASE_URL} target="_blank" rel="noopener" className="text-brand hover:underline">
           Airtable Intranet
         </a>
+        <Link href="/" className="text-brand hover:underline">
+          Home Command
+        </Link>
         <span className="cursor-not-allowed text-muted" title="Not part of this build yet">
-          Home Command · ANT Connector · Social Impact
+          ANT Connector · Social Impact
         </span>
       </div>
       <div className="text-[11px] text-muted">{meta}</div>
