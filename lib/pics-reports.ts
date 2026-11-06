@@ -2,7 +2,7 @@
    Mirrors the Airtable "Master Reports" table (tblRxHSe5HyDPLTZR), cross-referenced with the ANT Connector
    and Productivity Center. The Report Build Assistant is a scripted, simulated guide — no AI API is called. */
 import { REAL_DEPARTMENTS } from "./pics";
-import type { PicsReport, ReportChatState } from "./pics-types";
+import type { PicsOptions, PicsReport, ReportChatState } from "./pics-types";
 
 // Real Airtable "Report Type" single-select choices (fldlheUV888z5t8TQ)
 export const REPORT_TYPES = [
@@ -68,8 +68,13 @@ export type ChatEffect =
 export function advanceReportChat(
   prev: ReportChatState,
   text: string,
-  ctx: { reports: PicsReport[]; today: string; newId: () => string },
+  ctx: { reports: PicsReport[]; today: string; newId: () => string; options?: Pick<PicsOptions, "reportTypes" | "departments" | "reportPeriods" | "reportAudience"> },
 ): { state: ReportChatState; effect: ChatEffect } {
+  // Live Airtable choices when given (P.I.C.S page), else the snapshot lists.
+  const TYPES = ctx.options?.reportTypes.length ? ctx.options.reportTypes : REPORT_TYPES;
+  const DEPTS = ctx.options?.departments.length ? ctx.options.departments : REAL_DEPARTMENTS;
+  const PERIODS = ctx.options?.reportPeriods.length ? ctx.options.reportPeriods : REPORT_PERIODS;
+  const AUDIENCE = ctx.options?.reportAudience.length ? ctx.options.reportAudience : REPORT_AUDIENCE;
   const s: ReportChatState = { ...prev, draft: { ...prev.draft }, messages: [...prev.messages, { from: "user", text }] };
   const d = s.draft;
   const bot = (t: string) => s.messages.push({ from: "bot", text: t });
@@ -80,32 +85,32 @@ export function advanceReportChat(
     case "title":
       d.title = text;
       s.step = "type";
-      bot(`Got it — "${text}". What kind of report is this? (${REPORT_TYPES.join(", ")})`);
+      bot(`Got it — "${text}". What kind of report is this? (${TYPES.join(", ")})`);
       break;
     case "type":
-      d.reportType = REPORT_TYPES.find((x) => x.toLowerCase() === t.toLowerCase()) ?? REPORT_TYPES[0];
+      d.reportType = TYPES.find((x) => x.toLowerCase() === t.toLowerCase()) ?? TYPES[0];
       s.step = "depts";
-      bot(`Noted as ${d.reportType}. Which department(s) is this for? (${REAL_DEPARTMENTS.join(", ")})`);
+      bot(`Noted as ${d.reportType}. Which department(s) is this for? (${DEPTS.join(", ")})`);
       break;
     case "depts":
       d.depts = text
         .split(",")
         .map((x) => x.trim())
-        .filter((x) => REAL_DEPARTMENTS.includes(x));
+        .filter((x) => DEPTS.includes(x));
       if (!d.depts.length) d.depts = ["Operations"];
       s.step = "period";
-      bot(`Department(s): ${d.depts.join(", ")}. What's the reporting period? (${REPORT_PERIODS.join(", ")})`);
+      bot(`Department(s): ${d.depts.join(", ")}. What's the reporting period? (${PERIODS.join(", ")})`);
       break;
     case "period":
-      d.period = REPORT_PERIODS.find((p) => p.toLowerCase() === t.toLowerCase()) ?? REPORT_PERIODS[1];
+      d.period = PERIODS.find((p) => p.toLowerCase() === t.toLowerCase()) ?? (PERIODS.includes("Weekly") ? "Weekly" : PERIODS[0]);
       s.step = "audience";
-      bot(`Period: ${d.period}. Who's the audience? (${REPORT_AUDIENCE.join(", ")})`);
+      bot(`Period: ${d.period}. Who's the audience? (${AUDIENCE.join(", ")})`);
       break;
     case "audience":
       d.audience = text
         .split(",")
         .map((x) => x.trim())
-        .filter((x) => REPORT_AUDIENCE.includes(x));
+        .filter((x) => AUDIENCE.includes(x));
       if (!d.audience.length) d.audience = ["Self / Internal Team"];
       s.step = "request";
       bot(`Audience: ${d.audience.join(", ")}. Last thing — what should this report cover?`);
@@ -122,11 +127,11 @@ export function advanceReportChat(
         const report: PicsReport = {
           id: ctx.newId(),
           title: d.title ?? "Untitled report",
-          reportType: d.reportType ?? REPORT_TYPES[0],
+          reportType: d.reportType ?? TYPES[0],
           picsId: null,
           ant: "",
           depts: d.depts ?? ["Operations"],
-          period: d.period ?? REPORT_PERIODS[1],
+          period: d.period ?? (PERIODS.includes("Weekly") ? "Weekly" : PERIODS[0]),
           weekNumbers: [],
           audience: d.audience ?? ["Self / Internal Team"],
           productivityTasks: 0,

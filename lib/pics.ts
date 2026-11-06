@@ -78,6 +78,7 @@ export const HIERARCHY_OPTIONS = ["None", "Parent", "Child", "Sub-child"] as con
 export type MarkerKind = "task" | "milestone" | "sprint" | "meeting";
 const TYPE_MARKER: Record<string, MarkerKind> = {
   Task: "task",
+  Meeting: "meeting",
   Subtask: "task",
   Sprint: "sprint",
   Milestone: "milestone",
@@ -113,13 +114,15 @@ export const ROADMAP_TYPE_KEY: { key: MarkerKind; label: string }[] = [
 
 export const PHASE_ORDER = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"];
 
-/* Roadmap Type choices editable from the dashboard (Meeting rows come from Meetings Master). */
-export const ROADMAP_TYPES = ["Task", "Subtask", "Sprint", "Milestone", "Feedback & Review", "Assessment", "Initiation", "Closed"];
+/* Roadmap Type choices editable from the dashboard (Meeting rows come from Meetings Master) — the real choices
+   of the Airtable "Roadmap Type" field (fld3OQAOgZQl5g6ZP). */
+export const ROADMAP_TYPES = ["Task", "Subtask", "Sprint", "Milestone", "Feedback & Review", "Discovery", "Initiation", "Closed"];
 export const ROADMAP_STATUS = ["Not Started", "In Progress", "Completed", "At Risk", "Delayed", "In Review", "Cancelled", "Planning"];
 export const CHECK_STATUS = ["done", "overdue", "upcoming"] as const;
 export const TASK_STATUS = ["Not Started", "In Progress", "Completed", "Blocked"];
 export const APPROVAL_STATUS = ["Not Started", "Review & Feedback", "Approved", "Rejected"];
-export const ASSET_TYPES = ["Web", "Report", "Feature", "Code", "Video", "Document"];
+/* Real choices of the Airtable Checklist "Deliverable (Asset) Type" field (flddzG2oFJcDBCuxA). */
+export const ASSET_TYPES = ["Web", "Report", "Feature", "Code", "Video", "Document", "Image", "Multimedia"];
 export const ITEM_TYPES = ["Task", "Deliverable"];
 
 export const CHECKLIST_PAGE_SIZE = 10;

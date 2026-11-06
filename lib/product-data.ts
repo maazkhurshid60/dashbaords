@@ -66,9 +66,27 @@ export const AT: Record<string, AtTable> = {
   checks:    { id:null, name:'Site Health Checks (NEW)' },
   experiments:{ id:null, name:'Experiments & Flags (NEW)' },
   /* Communications table (added by the Communications page in the original) */
-  comms:     { id:'tblzb0tCJJoZCmo17', name:'Communications', f:{ status:'fldObZM1AA9j9XjmX', intent:'fldRkBWQpnI5cdG60', assignee:'fld9WIb2iEMqDNhYM', draft:'fldpLXPxz0RrPylwE', gen:'fld7b57v7TcSfHBEA', deploy:'fldfMBuMY7tkX01EQ', needs:'fldfNzIyDNvT6IPYX', notes:'fldopeOzqmBF5FtBh' } }
+  comms:     { id:'tblzb0tCJJoZCmo17', name:'Communications', f:{ status:'fldObZM1AA9j9XjmX', intent:'fldRkBWQpnI5cdG60', assignee:'fld9WIb2iEMqDNhYM', draft:'fldpLXPxz0RrPylwE', gen:'fld7b57v7TcSfHBEA', deploy:'fldfMBuMY7tkX01EQ', needs:'fldfNzIyDNvT6IPYX', notes:'fldopeOzqmBF5FtBh' } },
+  /* P.I.C.S Roadmaps (act.addRoad creates rows here) and Announcements (Communications › Updates) */
+  roadmaps:  { id:'tblTo1C185aBEIshk', name:'P.I.C.S Roadmaps', f:{ title:'fldpiPmyrdTtbISsV', pics:'fldhd79gXJvwE4LTw', type:'fld3OQAOgZQl5g6ZP', status:'fldMVHS5ztNrhnwFi', notes:'fldESgBxo9w0qjSHy' } },
+  announcements:{ id:'tblsFJrIbGx7qNJEx', name:'Announcements', f:{ title:'fldmVcy0lKzhDXZ7P', body:'fldqeKDgJreGNq5ir', type:'fldxNN5hZbVfpKvZ1', page:'fldXMnTzew3778lFS', audience:'fldlZoMxsxOeqMut0', status:'fldAlZa8wHrL4vyUD', date:'fld62XZ47a3Spgbye', expires:'fld2k5lEeedvkkpD4', pinned:'fldc2W3Ti1o0QrLhn' } }
 };
-export const atUrl = (t: string | null | undefined, rec?: string | null) => `https://airtable.com/${CFG.airtableBase}/${t}${rec && rec.startsWith('rec') ? '/'+rec : ''}`;
+/* Sync gate: NEW_ITEMS = things on the Omni build list ("Table", "Table.Field" or
+   "Table.Field: Choice"). Example mode treats them as not built; live mode uses the
+   endpoint's `missing` list, which the server computes from the live Airtable schema. */
+export const NEW_ITEMS = [
+  "Site Health Checks", "Feature Adoption Snapshots", "Feedback Themes",
+  "Accounts (Reference).MRR", "Accounts (Reference).Features Used", "Accounts (Reference).Adoption Stage", "Accounts (Reference).City",
+  "Accounts (Reference).Acquisition Channel", "Accounts (Reference).Last Active", "Accounts (Reference).NPS Score",
+  "User Feedback & Insights.Related Persona", "User Feedback & Insights.Theme", "User Feedback & Insights.Importance",
+  "User Feedback & Insights.Triage Status", "User Feedback & Insights.Customer Notified",
+  "Product Features.Product Area", "Customer Personas.Price Label", "IT & Systems Registry.Fix Task",
+  "Launch Criteria.Related P.I.C.S", "GTM Launches.Related P.I.C.S",
+];
+/** Communications adds these to the list (NEW_ITEMS.push in the original). */
+export const COMMS_NEW_ITEMS = [...NEW_ITEMS, "Announcements", "Communications.Channel: Community"];
+
+export const atUrl =(t: string | null | undefined, rec?: string | null) => `https://airtable.com/${CFG.airtableBase}/${t}${rec && rec.startsWith('rec') ? '/'+rec : ''}`;
 
 /* ===================== SAMPLE SNAPSHOT =====================
    Deterministic (seeded) so the page reads the same every load.
@@ -77,11 +95,17 @@ export const atUrl = (t: string | null | undefined, rec?: string | null) => `htt
 export function mulberry(a: number){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 export const DAY=864e5;
 export const iso=(d: number|string|Date)=>new Date(d).toISOString().slice(0,10);
-/* Fixed anchor (local time, exactly as the original page). */
-export const TODAY=new Date('2026-09-28T12:00:00');
+/* Example data is anchored to a fixed day (local time, exactly as the original page). */
+export const SAMPLE_TODAY=new Date('2026-09-28T12:00:00');
+/** "Today" for every date calc. Example mode keeps the Sep 28 anchor; live mode moves it to the
+    real clock (setLiveClock) so overdue / days-left / ticket ages are right for live Airtable rows.
+    `let` export = live binding: importers always read the current value. */
+export let TODAY=SAMPLE_TODAY;
+export function setLiveClock(live: boolean){ TODAY = live ? new Date() : SAMPLE_TODAY; }
 
 /** Example snapshot. Pass a fresh seeded RNG so every call returns the same data. */
 export function buildSample(R: () => number = mulberry(20261201)): ProductData {
+  const TODAY=SAMPLE_TODAY;
   const rint=(a: number,b: number)=>Math.floor(a+R()*(b-a+1));
   const pick=<T,>(a: T[]): T=>a[Math.floor(R()*a.length)];
   const wpick=<T,>(items: T[],weights: number[]): T=>{ const s=weights.reduce((x,y)=>x+y,0); let r=R()*s; for(let i=0;i<items.length;i++){ r-=weights[i]; if(r<=0) return items[i]; } return items[items.length-1]; };

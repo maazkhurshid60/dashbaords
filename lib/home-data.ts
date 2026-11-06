@@ -1,5 +1,6 @@
-// Content of the client's VCG_Home_Command.html (Home Command), kept as data so
-// it can later be swapped for Airtable reads.
+// Content of the client's VCG_Home_Command.html (Home Command). lib/home-live.ts reads the
+// live versions from Airtable; this file is the snapshot fallback (homeSnapshot()) and holds
+// the parts that are navigation/help text rather than data (nav cards, FAQ, sub-dashboards).
 
 export const AIRTABLE = "https://airtable.com/appLH1D7ME6mU1zgE";
 const page = (id: string) => `${AIRTABLE}/${id}/edit`;
@@ -7,10 +8,77 @@ const page = (id: string) => `${AIRTABLE}/${id}/edit`;
 /* Internal routes this app provides; "soon" = page not handed over yet. */
 export type Target = { href: string; external?: boolean } | { soon: string };
 
-export const KPIS: { value: string; label: string; target: Target }[] = [
+export interface Kpi {
+  value: string;
+  label: string;
+  target: Target;
+  /** True when no Airtable table holds this number, so it stays the client's snapshot value. */
+  snapshot?: boolean;
+}
+export interface Update {
+  dept: string;
+  text: string;
+  when: string;
+  title?: string;
+  pinned?: boolean;
+}
+export interface Tool {
+  id?: string;
+  name: string;
+  glyph: string;
+  color: string;
+  logo?: string;
+  url?: string;
+  desc?: string;
+  layers?: string[];
+  /** Departments that use the tool. */
+  departments: string[];
+}
+export interface Department {
+  id?: string;
+  name: string;
+  color: string;
+  desc: string;
+  tools: string[];
+  target: Target;
+  heads?: string[];
+  members?: number;
+  activePics?: number;
+  openAnt?: number;
+}
+export interface Resource {
+  name: string;
+  target?: Target;
+  /** Live count line, e.g. "46 active prompts". */
+  detail?: string;
+}
+export interface ResourceDoc {
+  id: string;
+  title: string;
+  category: string;
+  desc: string;
+  departments: string[];
+  target?: Target;
+  updated?: string;
+}
+export interface HomeData {
+  kpis: Kpi[];
+  northStar: { title: string; progress: number }[];
+  updates: Update[];
+  navCards: typeof NAV_CARDS;
+  faqs: typeof FAQS;
+  tools: Tool[];
+  departments: Department[];
+  resources: Resource[];
+  resourcesLink: string;
+  docs: ResourceDoc[];
+  subDashboards: typeof SUB_DASHBOARDS;
+}
+
+export const KPIS: Kpi[] = [
   { value: "8", label: "Departments", target: { href: "/departments" } },
   { value: "5", label: "Open ANT Requests", target: { soon: "ANT Connector" } },
-  { value: "10", label: "Greater Good Goals Tracked", target: { soon: "Social Impact" } },
+  { value: "10", label: "Greater Good Goals Tracked", target: { soon: "Social Impact" }, snapshot: true },
   { value: "38%", label: "Avg. North Star Progress", target: { href: "#north-star" } },
 ];
 
@@ -19,7 +87,7 @@ export const NORTH_STAR = [
   { title: "Establish All Internal Company Frameworks & Tools", progress: 75 },
 ];
 
-export const UPDATES = [
+export const UPDATES: Update[] = [
   { dept: "Product", text: "ACRYLICS MVP hit 60% completion — on track for launch.", when: "2 hours ago" },
   { dept: "Media", text: "TechCrunch feature published — positive sentiment.", when: "3 days ago" },
   { dept: "Executive", text: "Q3 board deck approved and published to Briefs Hub.", when: "1 week ago" },
@@ -72,7 +140,7 @@ export const TOOLS = [
   { name: "Scribe", glyph: "S", color: "#FF5A75" },
 ];
 
-export const DEPARTMENTS: { name: string; color: string; desc: string; tools: string[]; target: Target }[] = [
+export const DEPARTMENTS: Department[] = [
   {
     name: "Executive",
     color: "#22232F",
@@ -131,7 +199,7 @@ export const DEPARTMENTS: { name: string; color: string; desc: string; tools: st
   },
 ];
 
-export const RESOURCES: { name: string; target?: Target }[] = [
+export const RESOURCES: Resource[] = [
   { name: "Prompt Library", target: { soon: "ANT Connector" } },
   { name: "Tool Library", target: { href: AIRTABLE, external: true } },
   { name: "Professional Development" },
@@ -147,3 +215,20 @@ export const SUB_DASHBOARDS: { name: string; target: Target }[] = [
   { name: "DAM", target: { href: page("pagMxv5crO45B18dk"), external: true } },
   { name: "RDS", target: { href: page("pagipzeK7jHwSVCyR"), external: true } },
 ];
+
+/** The whole page as the client's snapshot (used when Airtable can't be read). */
+export function homeSnapshot(): HomeData {
+  return {
+    kpis: KPIS,
+    northStar: NORTH_STAR,
+    updates: UPDATES,
+    navCards: NAV_CARDS,
+    faqs: FAQS,
+    tools: TOOLS.map((t) => ({ ...t, departments: DEPARTMENTS.filter((d) => d.tools.includes(t.name)).map((d) => d.name) })),
+    departments: DEPARTMENTS,
+    resources: RESOURCES,
+    resourcesLink: RESOURCES_LINK,
+    docs: [],
+    subDashboards: SUB_DASHBOARDS,
+  };
+}

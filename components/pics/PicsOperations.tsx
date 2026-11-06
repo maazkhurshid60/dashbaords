@@ -1,16 +1,17 @@
 "use client";
 
-/* P.I.C.S Operations — port of VCG_PICS_Operations (4).html. Every edit lives in React state for the
-   session only (no Airtable writes yet), as in the original. */
+/* P.I.C.S Operations — port of VCG_PICS_Operations (4).html. Data comes from app/pics/page.tsx (live
+   from Airtable via lib/pics-live.ts, or the bundled snapshot when Airtable can't be read).
+   Edits that map to a real Airtable field (stage, new P.I.C.S, checklist items, roadmap rows, review
+   activities, new reports) update the UI optimistically and save through /api/pics/*; a failed save is
+   reverted and toasted. Everything else (Task Planning mirror, report chat, snapshot mode) is session-only. */
 import { useMemo, useState } from "react";
 import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
+import { DataSourceBadge, type Source } from "@/components/DataSource";
 import { Donut, DonutLegend, SERIES, type DonutDatum } from "@/components/charts";
 import { IconCalendar, IconCheck, IconExternal, IconFlag, IconLayers, IconPlus } from "@/components/icons";
 import { Avatar, CardHead, useToast } from "@/components/ui";
 import {
-  PICS_TYPES,
-  RECORD_TYPES,
-  STAGES,
   STAGE_COLOR,
   VISIBLE_TILE_COUNT,
   phaseCount,
@@ -18,14 +19,14 @@ import {
   relationshipChip,
   todayISO,
 } from "@/lib/pics";
-import { PICS_SEED } from "@/lib/pics-records";
-import { MASTER_REPORTS_SEED } from "@/lib/pics-reports-data";
+import { picsApi, saveError } from "@/lib/pics-api";
 import { EMPTY_CHAT, advanceReportChat, startNewReportChat } from "@/lib/pics-reports";
 import { ensureBauPicsRecord, resyncTaskPlanning, seedTaskPlanningFromExistingRoadmaps, syncRoadmapRowToTaskPlanning } from "@/lib/pics-sync";
-import type { PicsReport, ReportChatState, TaskPlanningEntry } from "@/lib/pics-types";
+import type { PicsData, PicsReport, ReportChatState, TaskPlanningEntry } from "@/lib/pics-types";
 import type { ChecklistItem, PicsRecord, RoadmapRow } from "@/lib/types";
 import { cx, fmt, fmtDT, pctElapsed } from "@/lib/utils";
 import { PicsCalendar } from "./PicsCalendar";
+import { PicsOptionsProvider } from "./PicsOptionsContext";
 import { AddChecklistModal, AddRoadmapModal, EditChecklistModal, NewPicsModal } from "./PicsForms";
 import { NewReportModal, ReportDetailModal, ReportsView } from "./PicsReports";
 import { RecordDetail, type DetailHandlers } from "./RecordDetail";
@@ -41,27 +42,52 @@ type Dialog =
   | { kind: "newReport" }
   | { kind: "report"; id: string };
 
-function initialData() {
-  return seedTaskPlanningFromExistingRoadmaps(ensureBauPicsRecord(structuredClone(PICS_SEED)));
+/* Live data already has real BAU records (Type = BAU), so the synthetic BAU bucket is only added to the snapshot. */
+function initialData(data: PicsData, live: boolean) {
+  const recs = structuredClone(data.records);
+  return seedTaskPlanningFromExistingRoadmaps(live ? recs : ensureBauPicsRecord(recs));
 }
 
-export function PicsOperations({ initialOpenId }: { initialOpenId?: string | null }) {
+/** Airtable record IDs — only these are written back (snapshot / unsaved records stay local). */
+const isAt = (id: string | undefined): id is string => !!id && /^rec[A-Za-z0-9]{14}$/.test(id);
+let tmpSeq = 0;
+const tmpId = () => `tmp_${Date.now()}_${++tmpSeq}`;
+
+/* Deep link target: Airtable record ID, else P.I.C.S Tag or exact name (case-insensitive). */
+function findDeepLink(records: PicsRecord[], key: string | null | undefined) {
+  if (!key) return null;
+  const k = key.trim().toLowerCase();
+  return (records.find((r) => r.id === key) ?? records.find((r) => r.tag?.toLowerCase() === k || r.name.toLowerCase() === k))?.id ?? null;
+}
+
+export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?: string | null; data: PicsData; source: Source }) {
   const toast = useToast();
-  const [init] = useState(initialData);
+  const live = source.live;
+  const [init] = useState(() => initialData(data, live));
   const [records, setRecords] = useState<PicsRecord[]>(init.records);
   const [taskPlanning, setTaskPlanning] = useState<TaskPlanningEntry[]>(init.taskPlanning);
-  const [reports, setReports] = useState<PicsReport[]>(() => structuredClone(MASTER_REPORTS_SEED));
+  const [reports, setReports] = useState<PicsReport[]>(() => structuredClone(data.reports));
+  // Refresh (DataSourceBadge refresh -> router.refresh) hands us new server data: reload it, dropping session-only edits.
+  const [loaded, setLoaded] = useState(data);
+  if (loaded !== data) {
+    const d = initialData(data, live);
+    setLoaded(data);
+    setRecords(d.records);
+    setTaskPlanning(d.taskPlanning);
+    setReports(structuredClone(data.reports));
+  }
 
   const [view, setView] = useState<View>("board");
-  const [type, setType] = useState<(typeof PICS_TYPES)[number]>("Project");
+  // Choice lists: live Airtable select choices / Departments, or the snapshot lists (lib/pics-options.ts).
+  const options = data.options;
+  const typeFilters = [...options.types, "All"];
+  const [type, setType] = useState<string>(() => (data.options.types.includes("Project") ? "Project" : "All"));
   const [stage, setStage] = useState<string | null>(null);
   const [tilesExpanded, setTilesExpanded] = useState(false);
   const [query, setQuery] = useState("");
   const [reportFilter, setReportFilter] = useState("All");
   // Deep link: /pics?open=<picsId> opens that record's detail modal on load (openFromDeepLink).
-  const [openId, setOpenId] = useState<string | null>(() =>
-    initialOpenId && init.records.some((r) => r.id === initialOpenId) ? initialOpenId : null,
-  );
+  const [openId, setOpenId] = useState<string | null>(() => findDeepLink(init.records, initialOpenId));
   const [dialog, setDialog] = useState<Dialog | null>(null);
   // Collapse state for phase / month / review / checklist groups, keyed "recId::groupKey" (collapsed by default).
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -82,6 +108,45 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
       }),
     );
 
+  /* Runs an Airtable save; on failure reverts the optimistic change and toasts why. */
+  const persist = async <T,>(run: () => Promise<T>, revert: () => void, done?: (r: T) => void) => {
+    try {
+      done?.(await run());
+    } catch (e) {
+      revert();
+      toast(saveError(e));
+    }
+  };
+
+  /* A checklist item / roadmap row can be linked to several P.I.C.S (parent + child), so server results are
+     applied to every copy, matched by Airtable record ID. Review-round activities mirror checklist items too. */
+  const applyChecklist = (atId: string, item: ChecklistItem, atStatus?: string) =>
+    setRecords((rs) =>
+      rs.map((r) => {
+        const inList = r.checklist.some((c) => c.atId === atId);
+        const inReview = atStatus !== undefined && !!r.reviewRounds?.some((rr) => rr.activities?.some((a) => a.atId === atId));
+        if (!inList && !inReview) return r;
+        return {
+          ...r,
+          checklist: inList ? r.checklist.map((c) => (c.atId === atId ? { ...item } : c)) : r.checklist,
+          reviewRounds: inReview
+            ? r.reviewRounds?.map((rr) => ({
+                ...rr,
+                activities: rr.activities?.map((a) => (a.atId === atId ? { label: item.item, status: atStatus ?? a.status, atId } : a)),
+              }))
+            : r.reviewRounds,
+        };
+      }),
+    );
+  const applyRoadmapRow = (atId: string, row: RoadmapRow) =>
+    setRecords((rs) =>
+      rs.map((r) =>
+        r.roadmapRows.some((x) => x.atId === atId)
+          ? { ...r, roadmapRows: r.roadmapRows.map((x) => (x.atId === atId ? { ...row, tpId: x.tpId } : x)) }
+          : r,
+      ),
+    );
+
   /* ---------- record mutations ---------- */
   const createRecord = (rec: PicsRecord) => {
     setRecords((rs) => [
@@ -91,28 +156,169 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
     setType(rec.type);
     setStage(null);
     setDialog(null);
+    if (!live) return;
+    const temp = rec.id;
+    // Swap the temporary id for the Airtable one (or drop the record when `to` is null).
+    const swapId = (from: string, to: string | null) =>
+      setRecords((rs) =>
+        rs
+          .filter((r) => to !== null || r.id !== from)
+          .map((r) => ({
+            ...r,
+            id: r.id === from && to ? to : r.id,
+            childIds: r.childIds?.flatMap((c) => (c === from ? (to ? [to] : []) : [c])),
+          })),
+      );
+    void persist(
+      () =>
+        picsApi<{ id: string; leads: { i: string; name: string }[]; warnings: string[] }>("POST", "", {
+          name: rec.name,
+          type: rec.type,
+          stage: rec.stage,
+          start: rec.start,
+          end: rec.end,
+          depts: rec.depts,
+          leads: rec.leads.map((l) => l.i),
+          overview: rec.overview,
+          stakeholders: rec.stakeholders,
+          briefingLink: rec.briefingLink,
+          liveSiteUrl: rec.liveSiteUrl,
+          hierarchy: rec.hierarchy ?? "None",
+          parentId: rec.parentId,
+          active: rec.active,
+        }),
+      () => {
+        swapId(temp, null);
+        setOpenId((o) => (o === temp ? null : o));
+      },
+      (res) => {
+        swapId(temp, res.id);
+        if (res.leads.length) updateRecord(res.id, (d) => void (d.leads = res.leads));
+        setOpenId((o) => (o === temp ? res.id : o));
+        toast(res.warnings.length ? `"${rec.name}" saved to Airtable · ${res.warnings.join(" · ")}` : `"${rec.name}" launched and saved to Airtable`);
+      },
+    );
+  };
+  const changeStage = (recId: string, next: string) => {
+    const prev = byId[recId]?.stage;
+    if (prev === undefined || prev === next) return;
+    updateRecord(recId, (d) => void (d.stage = next));
+    if (!live || !isAt(recId)) {
+      toast(`Moved to ${next} (session only — not saved to Airtable)`);
+      return;
+    }
+    void persist(
+      () => picsApi("PATCH", `/${recId}`, { stage: next }),
+      () => updateRecord(recId, (d) => void (d.stage = prev)),
+      () => toast(`Moved to ${next} — saved to Airtable`),
+    );
   };
   const addRoadmapRow = (recId: string, row: RoadmapRow) => {
     const r = byId[recId];
     if (!r) return;
-    const s = syncRoadmapRowToTaskPlanning(r, row);
+    const write = live && isAt(recId);
+    const temp = tmpId();
+    const s = syncRoadmapRowToTaskPlanning(r, write ? { ...row, atId: temp } : row);
     updateRecord(recId, (d) => void d.roadmapRows.push(s.row));
     setTaskPlanning((tp) => [...tp, s.entry]);
     setDialog(null);
+    if (!write) return;
+    void persist(
+      () => picsApi<{ row: RoadmapRow | null }>("POST", "/roadmap", { picsId: recId, row }),
+      () => {
+        updateRecord(recId, (d) => void (d.roadmapRows = d.roadmapRows.filter((x) => x.atId !== temp)));
+        setTaskPlanning((tp) => tp.filter((e) => e.id !== s.entry.id));
+      },
+      (res) => {
+        if (res.row) applyRoadmapRow(temp, res.row);
+        toast("Roadmap item saved to Airtable");
+      },
+    );
   };
   const updateRoadmapRow = (recId: string, idx: number, row: RoadmapRow) => {
     const r = byId[recId];
     if (!r) return;
+    const prev = r.roadmapRows[idx];
     updateRecord(recId, (d) => void (d.roadmapRows[idx] = row));
     setTaskPlanning((tp) => resyncTaskPlanning(tp, r, row));
+    if (!live || !prev || !isAt(row.atId)) return;
+    const atId = row.atId;
+    void persist(
+      () => picsApi<{ row: RoadmapRow | null }>("PATCH", `/roadmap/${atId}`, { row }),
+      () => {
+        applyRoadmapRow(atId, prev);
+        setTaskPlanning((tp) => resyncTaskPlanning(tp, r, prev));
+      },
+      (res) => {
+        if (res.row) applyRoadmapRow(atId, res.row);
+        toast("Roadmap item saved to Airtable");
+      },
+    );
   };
   const addChecklistItem = (recId: string, c: ChecklistItem) => {
-    updateRecord(recId, (d) => void d.checklist.push(c));
+    const write = live && isAt(recId);
+    const temp = tmpId();
+    updateRecord(recId, (d) => void d.checklist.push(write ? { ...c, atId: temp } : c));
     setDialog(null);
+    if (!write) return;
+    void persist(
+      () => picsApi<{ item: ChecklistItem; atStatus: string }>("POST", "/checklist", { picsId: recId, item: c }),
+      () => updateRecord(recId, (d) => void (d.checklist = d.checklist.filter((x) => x.atId !== temp))),
+      (res) => {
+        applyChecklist(temp, res.item);
+        toast("Checklist item saved to Airtable");
+      },
+    );
   };
   const saveChecklistItem = (recId: string, idx: number, c: ChecklistItem) => {
+    const prev = byId[recId]?.checklist[idx];
     updateRecord(recId, (d) => void (d.checklist[idx] = c));
     setDialog(null);
+    if (!live || !prev || !isAt(prev.atId)) return;
+    const atId = prev.atId;
+    void persist(
+      () => picsApi<{ item: ChecklistItem; atStatus: string }>("PATCH", `/checklist/${atId}`, { item: c }),
+      () => applyChecklist(atId, prev),
+      (res) => {
+        applyChecklist(atId, res.item, res.atStatus);
+        toast("Checklist item saved to Airtable");
+      },
+    );
+  };
+  const saveActivity = (recId: string, ri: number, ai: number, label: string, status: string) => {
+    const prev = byId[recId]?.reviewRounds?.[ri]?.activities?.[ai];
+    const setAct = (l: string, st: string) =>
+      updateRecord(recId, (d) => {
+        const acts = d.reviewRounds?.[ri]?.activities;
+        if (acts?.[ai]) acts[ai] = { ...acts[ai], label: l, status: st };
+      });
+    setAct(label, status);
+    if (!live || !prev || !isAt(prev.atId)) {
+      toast(SAVED_TOAST);
+      return;
+    }
+    const atId = prev.atId;
+    void persist(
+      () => picsApi<{ item: ChecklistItem; atStatus: string }>("PATCH", `/checklist/${atId}`, { activity: { label, status } }),
+      () => setAct(prev.label, prev.status),
+      (res) => {
+        applyChecklist(atId, res.item, res.atStatus);
+        toast("Activity saved to its Airtable checklist item");
+      },
+    );
+  };
+  const addReport = (r: PicsReport) => {
+    setReports((rs) => [...rs, r]);
+    setDialog(null);
+    if (!live) return;
+    void persist(
+      () => picsApi<{ id: string; warnings: string[] }>("POST", "/reports", { report: r }),
+      () => setReports((rs) => rs.filter((x) => x.id !== r.id)),
+      (res) => {
+        setReports((rs) => rs.map((x) => (x.id === r.id ? { ...x, id: res.id } : x)));
+        toast(res.warnings.length ? `Report saved to Master Reports · ${res.warnings.join(" · ")}` : "Report saved to Master Reports in Airtable");
+      },
+    );
   };
 
   /* ---------- reports + Report Build Assistant ---------- */
@@ -123,6 +329,7 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
   const sendChat = (text: string) => {
     const { state, effect } = advanceReportChat(chat, text, {
       reports,
+      options,
       today: todayISO(),
       newId: () => `r_chat_${Date.now()}`,
     });
@@ -143,15 +350,17 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
     !q || [r.name, r.type, r.stage, ...r.depts, ...r.leads.map((l) => l.i)].some((v) => v.toLowerCase().includes(q));
   const list = records.filter((r) => (type === "All" || r.type === type) && (!stage || r.stage === stage) && matches(r));
 
-  const typeMix: DonutDatum[] = RECORD_TYPES.map((t, i) => ({
+  const typeMix: DonutDatum[] = options.types.map((t, i) => ({
     key: t,
     label: t,
     value: records.filter((r) => r.type === t).length,
-    color: SERIES[i],
+    color: SERIES[i % SERIES.length],
   }));
 
+  // Stage tiles follow the Airtable Stage choices; any stage on a record that isn't a choice is appended.
+  const stageKeys = [...options.stages, ...new Set(records.map((r) => r.stage).filter((s) => !options.stages.includes(s)))];
   const tiles = [{ key: null as string | null, label: "Active P.I.C.S", count: records.length }].concat(
-    STAGES.map((s) => ({ key: s, label: s, count: records.filter((r) => r.stage === s).length })),
+    stageKeys.map((s) => ({ key: s, label: s, count: records.filter((r) => r.stage === s).length })),
   );
   const hiddenTiles = tiles.length - VISIBLE_TILE_COUNT;
   const shownTiles = tilesExpanded ? tiles : tiles.slice(0, VISIBLE_TILE_COUNT);
@@ -178,13 +387,9 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
         onAddChecklist: () => setDialog({ kind: "addChecklist", recId: open.id }),
         onEditChecklist: (idx) => setDialog({ kind: "editChecklist", recId: open.id, idx }),
         onUpdateRoadmapRow: (idx, row) => updateRoadmapRow(open.id, idx, row),
-        onSaveActivity: (ri, ai, label, status) => {
-          updateRecord(open.id, (d) => {
-            const acts = d.reviewRounds?.[ri]?.activities;
-            if (acts?.[ai]) acts[ai] = { label, status };
-          });
-          toast(SAVED_TOAST);
-        },
+        onSaveActivity: (ri, ai, label, status) => saveActivity(open.id, ri, ai, label, status),
+        onChangeStage: (next) => changeStage(open.id, next),
+        live,
       }
     : null;
 
@@ -192,10 +397,15 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
   const dlgReport = dialog?.kind === "report" ? reports.find((r) => r.id === dialog.id) : undefined;
 
   return (
+    <PicsOptionsProvider value={options}>
     <div className="flex flex-1 flex-col xl:flex-row">
       <main className="min-w-0 flex-1">
         <TopBar
-          title="P.I.C.S Operations"
+          title={
+            <span className="flex flex-wrap items-center gap-3">
+              P.I.C.S Operations <DataSourceBadge source={source} />
+            </span>
+          }
           search={view === "board" ? "Search P.I.C.S…" : "Search reports…"}
           query={query}
           onQuery={setQuery}
@@ -249,7 +459,7 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
                     />
                     <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
                       {shownTiles.map((t) => {
-                        const c = t.key ? STAGE_COLOR[t.key] : "#15171c";
+                        const c = t.key ? (STAGE_COLOR[t.key] ?? "#7B7F8C") : "#15171c";
                         const selected = stage === t.key;
                         return (
                           <button
@@ -304,7 +514,7 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
                 </div>
                 <div className="mb-4 max-w-full">
                   <div className="seg" role="group" aria-label="Filter by type">
-                    {PICS_TYPES.map((t) => (
+                    {typeFilters.map((t) => (
                       <button key={t} type="button" aria-pressed={type === t} onClick={() => setType(t)}>
                         {t}
                       </button>
@@ -353,7 +563,13 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
             />
           )}
 
-          <PageFooter meta="VCG Intranet — Master Design System · P.I.C.S base snapshot · edits are session-only" />
+          <PageFooter
+            meta={
+              live
+                ? "VCG Intranet — Master Design System · Live from the P.I.C.S Airtable base · stage, checklist, roadmap & report edits save to Airtable"
+                : "VCG Intranet — Master Design System · P.I.C.S base snapshot (Airtable unavailable) · edits are session-only"
+            }
+          />
         </div>
       </main>
 
@@ -392,31 +608,25 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
         <RecordDetail record={open} relationship={relationship(open, byId)} onClose={() => setOpenId(null)} h={handlers} />
       )}
 
-      {dialog?.kind === "newPics" && <NewPicsModal records={records} onClose={() => setDialog(null)} onCreate={createRecord} />}
+      {dialog?.kind === "newPics" && <NewPicsModal records={records} live={live} onClose={() => setDialog(null)} onCreate={createRecord} />}
       {dialog?.kind === "addRoadmap" && dlgRec && (
-        <AddRoadmapModal record={dlgRec} onClose={() => setDialog(null)} onAdd={(row) => addRoadmapRow(dlgRec.id, row)} />
+        <AddRoadmapModal record={dlgRec} live={live} onClose={() => setDialog(null)} onAdd={(row) => addRoadmapRow(dlgRec.id, row)} />
       )}
       {dialog?.kind === "addChecklist" && dlgRec && (
-        <AddChecklistModal record={dlgRec} onClose={() => setDialog(null)} onAdd={(c) => addChecklistItem(dlgRec.id, c)} />
+        <AddChecklistModal record={dlgRec} live={live} onClose={() => setDialog(null)} onAdd={(c) => addChecklistItem(dlgRec.id, c)} />
       )}
       {dialog?.kind === "editChecklist" && dlgRec && dlgRec.checklist[dialog.idx] && (
         <EditChecklistModal
           key={`${dlgRec.id}-${dialog.idx}`}
           record={dlgRec}
           idx={dialog.idx}
+          live={live}
           onClose={() => setDialog(null)}
           onSave={(c) => saveChecklistItem(dlgRec.id, dialog.idx, c)}
         />
       )}
       {dialog?.kind === "newReport" && (
-        <NewReportModal
-          records={records}
-          onClose={() => setDialog(null)}
-          onCreate={(r) => {
-            setReports((rs) => [...rs, r]);
-            setDialog(null);
-          }}
-        />
+        <NewReportModal records={records} live={live} onClose={() => setDialog(null)} onCreate={addReport} />
       )}
       {dlgReport && (
         <ReportDetailModal report={dlgReport} pics={dlgReport.picsId ? byId[dlgReport.picsId] : undefined} onClose={() => setDialog(null)} />
@@ -434,6 +644,7 @@ export function PicsOperations({ initialOpenId }: { initialOpenId?: string | nul
         onSend={sendChat}
       />
     </div>
+    </PicsOptionsProvider>
   );
 }
 

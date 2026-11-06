@@ -4,6 +4,10 @@ import { useState } from "react";
 import { CardHead, Select, StatusPill } from "@/components/ui";
 import type { ChecklistRecord } from "@/lib/productivity-types";
 import { fmtDT, plural } from "@/lib/utils";
+import { isoWeekOfKey, weekRangeText } from "@/lib/productivity-logic";
+import { useProductivity } from "./context";
+
+const PENDING = "pending";
 import { STATUS_LABEL, codeOf } from "./Modals";
 
 /** AI weekly summary: every submitted checklist's task statuses (6-way codes) plus notes. */
@@ -20,7 +24,16 @@ function buildAiWeeklySummary(list: ChecklistRecord[]) {
 
 export function SummariesView({ checklists, onReview }: { checklists: ChecklistRecord[]; onReview: (id: string) => void }) {
   const [member, setMember] = useState("all");
-  const submitted = checklists.filter((c) => c.submitted);
+  const { week } = useProductivity();
+  /** A week's Monday (YYYY-MM-DD), or PENDING for every week's unapproved submissions. */
+  const [weekKey, setWeekKey] = useState(week.start);
+  const weekOptions = [...new Set([week.start, ...checklists.map((c) => c.weekStart).filter((k): k is string => !!k)])]
+    .sort()
+    .reverse()
+    .map((k) => ({ value: k, label: `Week ${isoWeekOfKey(k)} · ${weekRangeText(k)}` }));
+  const pendingCount = checklists.filter((c) => c.submitted && c.approval !== "Approved").length;
+  const inScope = checklists.filter((c) => (weekKey === PENDING ? c.approval !== "Approved" : c.weekStart === weekKey));
+  const submitted = inScope.filter((c) => c.submitted);
   const members = [...new Set(submitted.map((c) => c.member))].sort();
   const list = submitted.filter((c) => member === "all" || c.member === member);
   const pending = list.filter((c) => c.approval !== "Approved");
@@ -34,7 +47,12 @@ export function SummariesView({ checklists, onReview }: { checklists: ChecklistR
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <Select label="Member" value={member} onChange={setMember} options={[{ value: "all", label: "All members" }, ...members.map((m) => ({ value: m, label: m }))]} />
-        <Select label="Week" value="39" onChange={() => {}} options={[{ value: "39", label: "Week 39" }]} />
+        <Select
+          label="Week"
+          value={weekKey}
+          onChange={setWeekKey}
+          options={[{ value: PENDING, label: `All pending review (${pendingCount})` }, ...weekOptions]}
+        />
         <span className="chip">{plural(list.length, "submitted checklist")}</span>
       </div>
 
@@ -56,7 +74,9 @@ export function SummariesView({ checklists, onReview }: { checklists: ChecklistR
             <div className="col-span-full rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">
               {submitted.length
                 ? "Nothing awaiting review for this filter."
-                : "No checklists submitted yet this week — submit one from Checklist details to appear here."}
+                : weekKey === PENDING
+                  ? "Nothing awaiting review in any week."
+                  : "No checklists submitted for this week yet — submit one from Checklist details to appear here."}
             </div>
           )}
         </div>
@@ -69,7 +89,9 @@ export function SummariesView({ checklists, onReview }: { checklists: ChecklistR
             approved.map((c) => <SummaryCard key={c.id} c={c} onReview={onReview} />)
           ) : (
             <div className="col-span-full rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">
-              No approved checklists yet — approve one from the review queue.
+              {weekKey === PENDING
+                ? "Pick a week to see its approved summaries."
+                : "No approved checklists for this week yet — approve one from the review queue."}
             </div>
           )}
         </div>

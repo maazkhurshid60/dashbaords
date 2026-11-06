@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { Modal, StatusPill } from "@/components/ui";
-import { REPORT_CONTENT, REPORT_STATUS_OPTIONS } from "@/lib/productivity-data";
-import { fmtKey, meetingById, meetingsThisWeek } from "@/lib/productivity-logic";
+import { CODE_TO_TASK_STATUS, TASK_STATUS_TO_CODE } from "@/lib/productivity-fields";
+import { fmtKey, isoWeekOfKey } from "@/lib/productivity-logic";
 import type { ChecklistRecord, MasterReport, Schedule, StatusCode, TaskChecklistItem } from "@/lib/productivity-types";
 import { cx, fmt, fmtDT, plural } from "@/lib/utils";
 import { MeetingModal, TaskDetailsModal } from "./MeetingModals";
-import { Empty, H, InfoGrid, SESSION_NOTE } from "./shared";
+import { useProductivity } from "./context";
+import { Empty, H, InfoGrid, useSessionNote } from "./shared";
 
 /* 6-way task status model used on checklists. */
 export const STATUS_CODES: StatusCode[] = ["NS", "P", "C", "NC", "D", "O"];
@@ -31,7 +32,7 @@ export const codeOf = (it: TaskChecklistItem): StatusCode => it.statusCode ?? (i
 
 /* ---------------- Schedule details ---------------- */
 
-type ScheduleNested = { kind: "task"; label: string } | { kind: "meeting"; id: string } | null;
+type ScheduleNested = { kind: "task"; label: string; taskId?: string } | { kind: "meeting"; id: string } | null;
 
 export function ScheduleModal({
   s,
@@ -45,7 +46,8 @@ export function ScheduleModal({
   onOpenChecklist: (id: string) => void;
 }) {
   const [nested, setNested] = useState<ScheduleNested>(null);
-  const meetings = meetingsThisWeek();
+  const { meetingsInWeekOf, meetingById, week } = useProductivity();
+  const meetings = meetingsInWeekOf(s.weekStart);
   const back = "← Back to schedule details";
   const nestedMeeting = nested?.kind === "meeting" ? meetingById(nested.id) : undefined;
 
@@ -81,7 +83,7 @@ export function ScheduleModal({
                   <button
                     type="button"
                     className="shrink-0 text-[11.5px] font-bold text-brand hover:underline"
-                    onClick={() => setNested({ kind: "task", label: t.label })}
+                    onClick={() => setNested({ kind: "task", label: t.label, taskId: t.taskId })}
                   >
                     Details
                   </button>
@@ -99,7 +101,7 @@ export function ScheduleModal({
           <Empty>No tasks linked to this schedule.</Empty>
         )}
 
-        <H count={plural(meetings.length, "meeting")}>This week&apos;s meetings</H>
+        <H count={plural(meetings.length, "meeting")}>{s.weekStart === week.start ? "This week's meetings" : `Meetings in Week ${isoWeekOfKey(s.weekStart)}`}</H>
         {meetings.length ? (
           <ul className="space-y-2">
             {meetings.map((m) => (
@@ -132,7 +134,9 @@ export function ScheduleModal({
           <p className="mt-6 text-[12px] text-muted">No related checklist for this schedule.</p>
         )}
       </Modal>
-      {nested?.kind === "task" && <TaskDetailsModal label={nested.label} onClose={() => setNested(null)} backLabel={back} />}
+      {nested?.kind === "task" && (
+        <TaskDetailsModal label={nested.label} taskId={nested.taskId} onClose={() => setNested(null)} backLabel={back} />
+      )}
       {nestedMeeting && <MeetingModal mt={nestedMeeting} onClose={() => setNested(null)} backLabel={back} />}
     </>
   );
@@ -153,7 +157,9 @@ export function ChecklistModal({
 }) {
   const [draft, setDraft] = useState<ChecklistRecord>(() => structuredClone(c));
   const [editing, setEditing] = useState<Set<number>>(() => new Set());
-  const [taskLabel, setTaskLabel] = useState<string | null>(null);
+  const [task, setTask] = useState<{ label: string; taskId?: string } | null>(null);
+  const { writable } = useProductivity();
+  const note = useSessionNote();
 
   const setItem = (i: number, fn: (it: TaskChecklistItem) => void) =>
     setDraft((d) => {
@@ -172,9 +178,17 @@ export function ChecklistModal({
   // Live: updates as status circles are clicked, before Save / Submit.
   const flagged = draft.items.filter((it) => ["NC", "D", "O"].includes(codeOf(it)));
 
+  /* A status circle and the edit panel's Status select describe the same Tasks Planning
+     "Status" column, so keep them in step: an edited Status wins, otherwise a changed
+     circle sets Status (P has no Status choice and stays local). */
   const commit = (submit: boolean) => {
     const n = structuredClone(draft);
-    n.items.forEach((it) => {
+    n.items.forEach((it, i) => {
+      const orig = c.items[i];
+      const statusChanged = !!it.edit && it.edit.status !== orig?.edit?.status;
+      if (statusChanged) it.statusCode = TASK_STATUS_TO_CODE[it.edit!.status] ?? it.statusCode;
+      else if (orig && codeOf(it) !== codeOf(orig) && it.edit && CODE_TO_TASK_STATUS[codeOf(it)])
+        it.edit = { ...it.edit, status: CODE_TO_TASK_STATUS[codeOf(it)]! };
       it.statusCode = codeOf(it);
       it.done = it.statusCode === "C";
     });
@@ -254,7 +268,11 @@ export function ChecklistModal({
                   >
                     {it.label}
                   </button>
-                  <button type="button" className="shrink-0 text-[11.5px] font-bold text-brand hover:underline" onClick={() => setTaskLabel(it.label)}>
+                  <button
+                    type="button"
+                    className="shrink-0 text-[11.5px] font-bold text-brand hover:underline"
+                    onClick={() => setTask({ label: it.label, taskId: it.taskId })}
+                  >
                     Details
                   </button>
                 </div>
@@ -271,9 +289,11 @@ export function ChecklistModal({
                         value={it.edit?.status ?? "Not Started"}
                         onChange={(e) => setItem(i, (x) => void (x.edit = { ...emptyEdit, ...x.edit, status: e.target.value }))}
                       >
-                        {["Not Started", "In Progress", "Completed", "At Risk", "Planning"].map((o) => (
-                          <option key={o}>{o}</option>
-                        ))}
+                        {[...new Set(["Not Started", "In Progress", "Completed", "At Risk", "Planning", ...(it.edit?.status ? [it.edit.status] : [])])].map(
+                          (o) => (
+                            <option key={o}>{o}</option>
+                          ),
+                        )}
                       </select>
                     </label>
                     <label>
@@ -283,7 +303,7 @@ export function ChecklistModal({
                         value={it.edit?.priority ?? "Medium"}
                         onChange={(e) => setItem(i, (x) => void (x.edit = { ...emptyEdit, ...x.edit, priority: e.target.value }))}
                       >
-                        {["Low", "Medium", "High"].map((o) => (
+                        {[...new Set(["Low", "Medium", "High", ...(it.edit?.priority ? [it.edit.priority] : [])])].map((o) => (
                           <option key={o}>{o}</option>
                         ))}
                       </select>
@@ -307,7 +327,9 @@ export function ChecklistModal({
                       />
                     </label>
                     <p className="text-[11px] leading-relaxed text-muted sm:col-span-3">
-                      Edits the Airtable columns behind this task — Status, Priority, Due Date, Notes — for this session.
+                      {writable
+                        ? "Edits the Tasks Planning columns behind this task — Status, Priority, Due Date, Notes From Assignee — when you Save or Submit."
+                        : "Edits the Airtable columns behind this task — Status, Priority, Due Date, Notes — for this session."}
                     </p>
                   </div>
                 )}
@@ -345,10 +367,10 @@ export function ChecklistModal({
           />
         </label>
         <p className="mt-4 text-[11.5px] leading-relaxed text-muted">
-          Status circles update the list above immediately and are kept once you Save or Submit. {SESSION_NOTE}
+          Status circles update the list above immediately and are kept once you Save or Submit. {note}
         </p>
       </Modal>
-      {taskLabel && <TaskDetailsModal label={taskLabel} onClose={() => setTaskLabel(null)} backLabel="← Back to checklist details" />}
+      {task && <TaskDetailsModal label={task.label} taskId={task.taskId} onClose={() => setTask(null)} backLabel="← Back to checklist details" />}
     </>
   );
 }
@@ -366,7 +388,8 @@ export function SummaryModal({
   onDecide: (status: "Approved" | "Rejected", feedback: string) => void;
   onSummary: (text: string) => void;
 }) {
-  const [feedback, setFeedback] = useState(c.managerNotes);
+  const [feedback, setFeedback] = useState(c.feedback ?? c.managerNotes);
+  const { writable, week } = useProductivity();
   return (
     <Modal
       open
@@ -391,8 +414,8 @@ export function SummaryModal({
       <InfoGrid
         cells={[
           ["Team member", c.member],
-          ["Week", "Week 39"],
-          ["Approver", "Eloisa Melchor"],
+          ["Week", c.week ?? week.label],
+          ["Approver", c.approver ?? "—"],
           ["Status", <StatusPill key="s" status={c.approval} />],
         ]}
       />
@@ -410,8 +433,18 @@ export function SummaryModal({
       ) : (
         <Empty>No linked tasks.</Empty>
       )}
-      <H>Related goals</H>
-      <Empty>No linked goals for this checklist record.</Empty>
+      <H count={c.goals?.length || undefined}>Related goals</H>
+      {c.goals?.length ? (
+        <div className="flex flex-wrap gap-1.5">
+          {c.goals.map((g) => (
+            <span key={g} className="rounded-full bg-plane px-2.5 py-1 text-[11.5px] font-semibold text-ink-2">
+              {g}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <Empty>No linked goals for this checklist record.</Empty>
+      )}
       <button
         type="button"
         className="btn btn-sm mt-5"
@@ -429,7 +462,11 @@ export function SummaryModal({
         <span className="field-label">Feedback</span>
         <textarea className="field" rows={3} placeholder={`Feedback for ${c.member}…`} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
       </label>
-      <p className="mt-4 text-[11.5px] leading-relaxed text-muted">Feedback and approval are kept in this session only.</p>
+      <p className="mt-4 text-[11.5px] leading-relaxed text-muted">
+        {writable
+          ? "Approve / Reject saves the decision and feedback to the Task Checklists record (Approved, Checklist Status, Checklist Feedback). Run summary report ticks Generate Checklist Summary in Airtable."
+          : "Feedback and approval are kept in this session only."}
+      </p>
     </Modal>
   );
 }
@@ -437,7 +474,8 @@ export function SummaryModal({
 /* ---------------- Master report ---------------- */
 
 export function ReportModal({ r, onClose, onStatus }: { r: MasterReport; onClose: () => void; onStatus: (s: string) => void }) {
-  const content = r.hasContent && r.contentKey ? REPORT_CONTENT[r.contentKey] : null;
+  const { reportContent, reportStatusOptions } = useProductivity();
+  const content = r.hasContent && r.contentKey ? reportContent[r.contentKey] : null;
   return (
     <Modal
       open
@@ -465,7 +503,7 @@ export function ReportModal({ r, onClose, onStatus }: { r: MasterReport; onClose
       <H>Status</H>
       <div className="flex flex-wrap items-center gap-3">
         <select aria-label="Status" className="field h-9 w-auto py-1" value={r.status} onChange={(e) => onStatus(e.target.value)}>
-          {REPORT_STATUS_OPTIONS.map((s) => (
+          {reportStatusOptions.map((s) => (
             <option key={s}>{s}</option>
           ))}
         </select>

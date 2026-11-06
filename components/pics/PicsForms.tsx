@@ -1,43 +1,42 @@
 "use client";
 
-/* Launch P.I.C.S / Add roadmap item / Add checklist item / Edit checklist item — all session-only. */
+/* Launch P.I.C.S / Add roadmap item / Add checklist item / Edit checklist item. With live data (`live`) the
+   parent saves each one to Airtable through /api/pics/* and toasts the result; on snapshot data they stay
+   in this session only. */
 import { useState } from "react";
 import { Modal, useToast } from "@/components/ui";
-import {
-  APPROVAL_STATUS,
-  ASSET_TYPES,
-  CHECK_STATUS,
-  HIERARCHY_OPTIONS,
-  ITEM_TYPES,
-  PHASE_ORDER,
-  REAL_DEPARTMENTS,
-  RECORD_TYPES,
-  ROADMAP_STATUS,
-  ROADMAP_TYPES,
-  STAGES,
-  TASK_STATUS,
-  todayISO,
-} from "@/lib/pics";
+import { CHECK_STATUS, todayISO } from "@/lib/pics";
+import { approvalOptions, taskStatusOptions, withCurrent } from "@/lib/pics-options";
 import type { ChecklistItem, PicsRecord, PicsType, RoadmapRow } from "@/lib/types";
+import { usePicsOptions } from "./PicsOptionsContext";
 import { Field, Note, Opts, ToggleChips, toggleIn } from "./pics-ui";
+
+/* Every select below lists only choices that exist on the Airtable field (from usePicsOptions); with snapshot
+   data they are the original hardcoded lists. */
+const pref = (list: string[], want: string) => (list.includes(want) ? want : (list[0] ?? want));
 
 /* ---------------- Launch a new P.I.C.S ----------------
    Every field maps to a real column on the Airtable P.I.C.S table (tblbiIHxN97iyltFY). Link fields
-   (Budgets, Meetings, Goals, Briefs…) are populated after creation in Airtable too, so they're not here. */
+   (Budgets, Meetings, Goals, Briefs…) are populated after creation in Airtable too, so they're not here.
+   Lead initials are matched to Team Members by the server; Related Department(s) by department name. */
 export function NewPicsModal({
   records,
+  live = false,
   onClose,
   onCreate,
 }: {
   records: PicsRecord[];
+  live?: boolean;
   onClose: () => void;
   onCreate: (rec: PicsRecord) => void;
 }) {
   const toast = useToast();
+  const o = usePicsOptions();
+  const hierarchyOptions = ["None", ...o.hierarchy];
   const [f, setF] = useState({
     name: "",
-    type: "Project" as PicsType,
-    stage: "Not Started",
+    type: pref(o.types, "Project") as PicsType,
+    stage: pref(o.stages, "Not Started"),
     start: "",
     end: "",
     leads: "",
@@ -45,11 +44,11 @@ export function NewPicsModal({
     stakeholders: "",
     briefing: "",
     liveSite: "",
-    hierarchy: "None" as (typeof HIERARCHY_OPTIONS)[number],
+    hierarchy: "None",
     parentId: "",
     active: true,
   });
-  const [depts, setDepts] = useState<string[]>(["Operations"]);
+  const [depts, setDepts] = useState<string[]>(() => (o.departments.includes("Operations") ? ["Operations"] : []));
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
 
   const submit = () => {
@@ -83,11 +82,11 @@ export function NewPicsModal({
       active: f.active,
     };
     if (f.hierarchy !== "None" && f.parentId && records.some((r) => r.id === f.parentId)) {
-      rec.hierarchy = f.hierarchy;
+      rec.hierarchy = f.hierarchy as PicsRecord["hierarchy"];
       rec.parentId = f.parentId;
     }
     onCreate(rec);
-    toast(`"${name}" launched (session only — not yet synced to Airtable)`);
+    if (!live) toast(`"${name}" launched (session only — not yet synced to Airtable)`);
   };
 
   return (
@@ -114,12 +113,12 @@ export function NewPicsModal({
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Type">
             <select className="field" value={f.type} onChange={(e) => set("type", e.target.value as PicsType)}>
-              <Opts list={RECORD_TYPES} />
+              <Opts list={o.types} />
             </select>
           </Field>
           <Field label="Stage">
             <select className="field" value={f.stage} onChange={(e) => set("stage", e.target.value)}>
-              <Opts list={STAGES} />
+              <Opts list={o.stages} />
             </select>
           </Field>
           <Field label="Start date">
@@ -129,7 +128,7 @@ export function NewPicsModal({
             <input type="date" className="field" value={f.end} onChange={(e) => set("end", e.target.value)} />
           </Field>
         </div>
-        <ToggleChips label="Related department(s)" options={REAL_DEPARTMENTS} selected={depts} onToggle={(d) => setDepts((p) => toggleIn(p, d))} />
+        <ToggleChips label="Related department(s)" options={o.departments} selected={depts} onToggle={(d) => setDepts((p) => toggleIn(p, d))} />
         <Field label="Project lead initials">
           <input className="field" value={f.leads} placeholder="e.g. JM, RT" onChange={(e) => set("leads", e.target.value)} />
         </Field>
@@ -150,9 +149,9 @@ export function NewPicsModal({
             <select
               className="field"
               value={f.hierarchy}
-              onChange={(e) => set("hierarchy", e.target.value as (typeof HIERARCHY_OPTIONS)[number])}
+              onChange={(e) => set("hierarchy", e.target.value)}
             >
-              <Opts list={HIERARCHY_OPTIONS} />
+              <Opts list={hierarchyOptions} />
             </select>
           </Field>
           <Field label="Parent P.I.C.S (if Child/Sub-child)">
@@ -171,7 +170,11 @@ export function NewPicsModal({
           Active
         </label>
       </div>
-      <Note>{SESSION_ONLY} Writing new P.I.C.S records to the live Airtable base needs a connected sync.</Note>
+      <Note>
+        {live
+          ? "Creates the record in the Airtable P.I.C.S table. Lead initials are linked to matching Team Members; unmatched initials are reported after saving."
+          : `${SESSION_ONLY} Airtable is unavailable (snapshot data), so nothing is written to the base.`}
+      </Note>
     </Modal>
   );
 }
@@ -181,21 +184,24 @@ const SESSION_ONLY = "Saves to this session only.";
 /* ---------------- Add roadmap item ---------------- */
 export function AddRoadmapModal({
   record: r,
+  live = false,
   onClose,
   onAdd,
 }: {
   record: PicsRecord;
+  live?: boolean;
   onClose: () => void;
   onAdd: (row: RoadmapRow) => void;
 }) {
   const toast = useToast();
+  const o = usePicsOptions();
   const [d, setD] = useState<RoadmapRow>({
     label: "",
-    type: ROADMAP_TYPES[0],
-    phase: PHASE_ORDER[0],
+    type: pref(o.roadmapTypes, "Task"),
+    phase: o.phases[0],
     date: "",
-    stage: STAGES[0],
-    status: ROADMAP_STATUS[0],
+    stage: pref(o.roadmapStages, "Not Started"),
+    status: pref(o.roadmapStatus, "Not Started"),
   });
   const submit = () => {
     const label = d.label.trim();
@@ -204,7 +210,7 @@ export function AddRoadmapModal({
       return;
     }
     onAdd({ ...d, label });
-    toast("Roadmap item added and synced to Task Planning");
+    if (!live) toast("Roadmap item added and synced to Task Planning");
   };
   return (
     <Modal
@@ -230,12 +236,12 @@ export function AddRoadmapModal({
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Type">
             <select className="field" value={d.type} onChange={(e) => setD({ ...d, type: e.target.value })}>
-              <Opts list={ROADMAP_TYPES} />
+              <Opts list={o.roadmapTypes} />
             </select>
           </Field>
           <Field label="Phase">
             <select className="field" value={d.phase} onChange={(e) => setD({ ...d, phase: e.target.value })}>
-              <Opts list={PHASE_ORDER} />
+              <Opts list={o.phases} />
             </select>
           </Field>
           <Field label="Date">
@@ -243,17 +249,21 @@ export function AddRoadmapModal({
           </Field>
           <Field label="Stage">
             <select className="field" value={d.stage} onChange={(e) => setD({ ...d, stage: e.target.value })}>
-              <Opts list={STAGES} />
+              <Opts list={o.roadmapStages} />
             </select>
           </Field>
         </div>
         <Field label="Status">
           <select className="field" value={d.status} onChange={(e) => setD({ ...d, status: e.target.value })}>
-            <Opts list={ROADMAP_STATUS} />
+            <Opts list={o.roadmapStatus} />
           </select>
         </Field>
       </div>
-      <Note>Saves to this session and mirrors into the Task Planning table (shown as “Synced” on the row). Writing back to the live Airtable base needs a connected sync.</Note>
+      <Note>
+        {live
+          ? "Saves to the Airtable P.I.C.S Roadmaps table (linked to this P.I.C.S) and mirrors into Task Planning for this session (shown as “Synced” on the row)."
+          : "Saves to this session and mirrors into the Task Planning table (shown as “Synced” on the row). Airtable is unavailable (snapshot data), so nothing is written to the base."}
+      </Note>
     </Modal>
   );
 }
@@ -268,6 +278,7 @@ export function ChecklistFields({
   setD: (c: ChecklistItem) => void;
   withStatus: boolean;
 }) {
+  const o = usePicsOptions();
   return (
     <div className="space-y-3">
       <Field label="Checklist item">
@@ -286,22 +297,23 @@ export function ChecklistFields({
         )}
         <Field label="Item type">
           <select className="field" value={d.itemType ?? "Task"} onChange={(e) => setD({ ...d, itemType: e.target.value })}>
-            <Opts list={ITEM_TYPES} />
+            <Opts list={withCurrent(o.itemTypes, d.itemType)} />
           </select>
         </Field>
         <Field label="Task status">
           <select className="field" value={d.taskStatus ?? "Not Started"} onChange={(e) => setD({ ...d, taskStatus: e.target.value })}>
-            <Opts list={TASK_STATUS} />
+            <Opts list={withCurrent(taskStatusOptions(o), d.taskStatus)} />
           </select>
         </Field>
         <Field label="Approval status">
           <select className="field" value={d.approvalStatus ?? "Not Started"} onChange={(e) => setD({ ...d, approvalStatus: e.target.value })}>
-            <Opts list={APPROVAL_STATUS} />
+            <Opts list={withCurrent(approvalOptions(o), d.approvalStatus)} />
           </select>
         </Field>
         <Field label="Asset type">
-          <select className="field" value={d.assetType ?? "Web"} onChange={(e) => setD({ ...d, assetType: e.target.value })}>
-            <Opts list={ASSET_TYPES} />
+          <select className="field" value={d.assetType ?? ""} onChange={(e) => setD({ ...d, assetType: e.target.value || undefined })}>
+            <option value="">—</option>
+            <Opts list={withCurrent(o.assetTypes, d.assetType)} />
           </select>
         </Field>
       </div>
@@ -339,23 +351,26 @@ export const finalizeChecklist = (c: ChecklistItem): ChecklistItem => ({
 /* ---------------- Add checklist item ---------------- */
 export function AddChecklistModal({
   record: r,
+  live = false,
   onClose,
   onAdd,
 }: {
   record: PicsRecord;
+  live?: boolean;
   onClose: () => void;
   onAdd: (c: ChecklistItem) => void;
 }) {
   const toast = useToast();
+  const o = usePicsOptions();
   const [d, setD] = useState<ChecklistItem>({
     item: "",
     due: null,
     done: null,
     status: "upcoming",
-    itemType: ITEM_TYPES[0],
-    taskStatus: TASK_STATUS[0],
-    approvalStatus: APPROVAL_STATUS[0],
-    assetType: ASSET_TYPES[0],
+    itemType: pref(o.itemTypes, "Task"),
+    taskStatus: pref(taskStatusOptions(o), "Not Started"),
+    approvalStatus: "Not Started",
+    assetType: o.assetTypes[0],
     complete: false,
     overdue: false,
     notes: "",
@@ -368,7 +383,7 @@ export function AddChecklistModal({
     }
     const status = d.due && d.due < todayISO() ? "overdue" : "upcoming";
     onAdd({ ...d, item, notes: (d.notes ?? "").trim(), status, overdue: status === "overdue", complete: false, done: null });
-    toast("Checklist item added (session only — not yet synced to Airtable)");
+    if (!live) toast("Checklist item added (session only — not yet synced to Airtable)");
   };
   return (
     <Modal
@@ -388,7 +403,11 @@ export function AddChecklistModal({
       }
     >
       <ChecklistFields d={d} setD={setD} withStatus={false} />
-      <Note>{SESSION_ONLY} Writing back to the live Airtable base needs a connected sync.</Note>
+      <Note>
+        {live
+          ? "Saves to the Airtable P.I.C.S Checklist table, linked to this P.I.C.S."
+          : `${SESSION_ONLY} Airtable is unavailable (snapshot data), so nothing is written to the base.`}
+      </Note>
     </Modal>
   );
 }
@@ -397,11 +416,13 @@ export function AddChecklistModal({
 export function EditChecklistModal({
   record: r,
   idx,
+  live = false,
   onClose,
   onSave,
 }: {
   record: PicsRecord;
   idx: number;
+  live?: boolean;
   onClose: () => void;
   onSave: (c: ChecklistItem) => void;
 }) {
@@ -423,7 +444,7 @@ export function EditChecklistModal({
             className="btn btn-brand"
             onClick={() => {
               onSave(finalizeChecklist(d));
-              toast("Checklist item updated and resynced (session only — not yet synced to Airtable)");
+              if (!(live && r.checklist[idx]?.atId)) toast("Checklist item updated and resynced (session only — not yet synced to Airtable)");
             }}
           >
             Save &amp; resync
@@ -432,7 +453,11 @@ export function EditChecklistModal({
       }
     >
       <ChecklistFields d={d} setD={setD} withStatus />
-      <Note>Saves to this session and updates this card&apos;s checklist immediately. Writing back to the live Airtable P.I.C.S Checklist table needs a connected sync.</Note>
+      <Note>
+        {live && r.checklist[idx]?.atId
+          ? "Updates this card's checklist immediately and saves to the Airtable P.I.C.S Checklist item. Task status, approval status and Complete combine into its single Airtable “Status”; “Overdue” is computed from the due date."
+          : "Saves to this session and updates this card's checklist immediately. Nothing is written to Airtable for this item."}
+      </Note>
     </Modal>
   );
 }

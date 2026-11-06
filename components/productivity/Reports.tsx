@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { IconChevron, IconDoc } from "@/components/icons";
 import { CardHead, Select } from "@/components/ui";
-import { REPORT_CONTENT, REPORT_STATUS_OPTIONS } from "@/lib/productivity-data";
 import type { MasterReport } from "@/lib/productivity-types";
 import { cx, fmt, plural } from "@/lib/utils";
+import { useProductivity } from "./context";
 import type { Hit } from "./shared";
 
 const monthKey = (d: string) => d.slice(0, 7);
@@ -36,6 +36,7 @@ export function ReportsView({
   const [month, setMonth] = useState("all");
   const [dept, setDept] = useState("all");
   const [status, setStatus] = useState("all");
+  const { writable } = useProductivity();
 
   const months = [...new Set(reports.map((r) => monthKey(r.date)))].sort();
   const depts = [...new Set(reports.map((r) => r.dept))].sort();
@@ -76,8 +77,8 @@ export function ReportsView({
 
         <p className="mt-5 text-[11.5px] leading-relaxed text-muted">
           Every row opens its full field breakdown. Only the {withContent} rows marked &quot;full report&quot; have ANT-generated text in
-          Airtable; the rest are real placeholder records. Status changes — including moving a report back out of Approved — stay in
-          this session until the Airtable sync is connected.
+          Airtable; the rest are real placeholder records. Status changes — including moving a report back out of Approved —{" "}
+          {writable ? "are saved to the Master Reports record (Status, Approved)." : "stay in this session (Airtable is unavailable, showing the snapshot)."}
         </p>
       </section>
     </div>
@@ -96,6 +97,7 @@ function ReportGroups({
 }) {
   const [openMonths, setOpenMonths] = useState<Set<string>>(() => new Set());
   const [openDepts, setOpenDepts] = useState<Set<string>>(() => new Set());
+  const { reportStatusOptions } = useProductivity();
   const groups = [...new Set(list.map((r) => monthKey(r.date)))].sort().reverse();
 
   return (
@@ -165,7 +167,7 @@ function ReportGroups({
                                       : "bg-white text-ink-2",
                                 )}
                               >
-                                {REPORT_STATUS_OPTIONS.map((s) => (
+                                {reportStatusOptions.map((s) => (
                                   <option key={s}>{s}</option>
                                 ))}
                               </select>
@@ -185,18 +187,20 @@ function ReportGroups({
   );
 }
 
-/** Week 39's Weekly Pulse isn't generated yet, so this shows the latest generated Pulse + ANT observations. */
+/** This week's Weekly Pulse when it has been generated; otherwise the latest generated Pulse + ANT observations. */
 function ComprehensiveReport() {
   const [open, setOpen] = useState(false);
-  const pulse = REPORT_CONTENT.pulse32;
-  const ant = REPORT_CONTENT.ant28;
+  const { comprehensive, week } = useProductivity();
+  const { current, pulse, ant } = comprehensive;
+  const currentReady = !!current?.contentKey;
+  const parts = [pulse && `Weekly Pulse (${fmt(pulse.reportDate)})`, ant && `ANT Observations (${fmt(ant.reportDate)})`].filter(Boolean).join(" + ");
   return (
     <section className="card p-6">
       <CardHead
         icon={<IconDoc width={20} height={20} />}
         eyebrow="Reporting · Master Reports table"
         title="Comprehensive productivity report"
-        sub={`Weekly Pulse (${fmt(pulse.reportDate)}) + ANT Observations (${fmt(ant.reportDate)}) — Week 39's own report isn't generated yet.`}
+        sub={`${parts || "No generated report text yet"}${currentReady ? "" : ` — ${week.label}'s own report isn't generated yet.`}`}
         right={
           <button type="button" className="btn btn-dark btn-sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
             {open ? "Collapse" : "Expand"}
@@ -206,21 +210,33 @@ function ComprehensiveReport() {
       />
       {open && (
         <div className="mt-5">
-          <p className="rounded-2xl bg-warn-soft px-4 py-3 text-[12px] leading-relaxed text-warn">
-            Week 39 (Sep 21–25, 2026)&apos;s Weekly Pulse record in Master Reports has not been generated yet (status: Not Started).
-            Showing the most recently generated report instead: Weekly Pulse from {fmt(pulse.reportDate)} plus ANT Observations &amp;
-            Suggestions from {fmt(ant.reportDate)}.
-          </p>
-          <div className="mt-5 grid gap-6 lg:grid-cols-2">
-            <article className="min-w-0 rounded-[20px] bg-plane p-5">
-              <div className="eyebrow text-brand">Weekly Pulse · {pulse.reportTitle}</div>
-              <div className="report-html mt-3 overflow-x-auto" dangerouslySetInnerHTML={{ __html: pulse.html }} />
-            </article>
-            <article className="min-w-0 rounded-[20px] bg-plane p-5">
-              <div className="eyebrow text-violet">ANT observations &amp; suggestions · {ant.reportTitle}</div>
-              <div className="report-html mt-3 overflow-x-auto" dangerouslySetInnerHTML={{ __html: ant.html }} />
-            </article>
-          </div>
+          {!currentReady && (
+            <p className="rounded-2xl bg-warn-soft px-4 py-3 text-[12px] leading-relaxed text-warn">
+              {week.label} ({week.range})&apos;s Weekly Pulse record in Master Reports{" "}
+              {current ? `has not been generated yet (status: ${current.status})` : "does not exist yet"}.
+              {pulse || ant
+                ? ` Showing the most recently generated report instead:${pulse ? ` Weekly Pulse from ${fmt(pulse.reportDate)}` : ""}${pulse && ant ? " plus" : ""}${ant ? ` ANT Observations & Suggestions from ${fmt(ant.reportDate)}` : ""}.`
+                : ""}
+            </p>
+          )}
+          {pulse || ant ? (
+            <div className="mt-5 grid gap-6 lg:grid-cols-2">
+              {pulse && (
+                <article className="min-w-0 rounded-[20px] bg-plane p-5">
+                  <div className="eyebrow text-brand">Weekly Pulse · {pulse.reportTitle}</div>
+                  <div className="report-html mt-3 overflow-x-auto" dangerouslySetInnerHTML={{ __html: pulse.html }} />
+                </article>
+              )}
+              {ant && (
+                <article className="min-w-0 rounded-[20px] bg-plane p-5">
+                  <div className="eyebrow text-violet">ANT observations &amp; suggestions · {ant.reportTitle}</div>
+                  <div className="report-html mt-3 overflow-x-auto" dangerouslySetInnerHTML={{ __html: ant.html }} />
+                </article>
+              )}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">No generated report text in Master Reports yet.</div>
+          )}
         </div>
       )}
     </section>

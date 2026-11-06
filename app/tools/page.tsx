@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { HomeCommand } from "@/components/home/HomeCommand";
+import { HomePage } from "@/components/home/HomePage";
 
 export const metadata: Metadata = { title: "Tools" };
+export const revalidate = 60;
 
-export default function Page() {
-  return <HomeCommand view="tools" />;
+export default async function Page() {
+  return <HomePage view="tools" />;
 }

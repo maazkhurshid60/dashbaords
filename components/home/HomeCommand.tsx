@@ -4,22 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
+import { DataSourceBadge, type Source } from "@/components/DataSource";
 import { IconArrowRight, IconChevron, IconExternal } from "@/components/icons";
 import { CardHead, useToast } from "@/components/ui";
-import {
-  AIRTABLE,
-  DEPARTMENTS,
-  FAQS,
-  KPIS,
-  NAV_CARDS,
-  NORTH_STAR,
-  RESOURCES,
-  RESOURCES_LINK,
-  SUB_DASHBOARDS,
-  TOOLS,
-  UPDATES,
-  type Target,
-} from "@/lib/home-data";
+import { AIRTABLE, type HomeData, type Target, type Tool } from "@/lib/home-data";
 import { cx } from "@/lib/utils";
 
 export type HomeView = "overview" | "departments" | "tools" | "resources";
@@ -33,7 +21,7 @@ const VIEWS: { id: HomeView; label: string; href: string }[] = [
 
 const UPDATE_INITIALS: Record<string, string> = { Product: "PR", Media: "ME", Executive: "EX" };
 
-export function HomeCommand({ view }: { view: HomeView }) {
+export function HomeCommand({ view, data, source }: { view: HomeView; data: HomeData; source: Source }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
@@ -51,7 +39,17 @@ export function HomeCommand({ view }: { view: HomeView }) {
   return (
     <div className="flex flex-1 flex-col xl:flex-row">
       <main className="min-w-0 flex-1">
-        <TopBar title={title} search="Search briefs, assets, people…" query={query} onQuery={setQuery} />
+        <TopBar
+          title={
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {title}
+              <DataSourceBadge source={source} />
+            </span>
+          }
+          search="Search briefs, assets, people…"
+          query={query}
+          onQuery={setQuery}
+        />
         <div className="space-y-6 px-5 pb-10 pt-4 sm:px-8">
           <nav className="seg" aria-label="Home Command views">
             {VIEWS.map((v) => (
@@ -69,28 +67,36 @@ export function HomeCommand({ view }: { view: HomeView }) {
             ))}
           </nav>
 
-          {view === "overview" && <Overview has={has} />}
-          {view === "departments" && <Departments has={has} />}
-          {view === "tools" && <Tools has={has} />}
-          {view === "resources" && <Resources has={has} />}
+          {view === "overview" && <Overview has={has} data={data} />}
+          {view === "departments" && <Departments has={has} data={data} />}
+          {view === "tools" && <Tools has={has} data={data} />}
+          {view === "resources" && <Resources has={has} data={data} />}
 
           <PageFooter meta="VCG Intranet — Master Design System" />
         </div>
       </main>
 
-      <SidePanel title="Home Command" feedTitle="Company updates" footnote="Stay in the loop · snapshot">
-        {UPDATES.map((u) => (
-          <FeedItem
-            key={u.text}
-            initials={UPDATE_INITIALS[u.dept] ?? u.dept.slice(0, 2).toUpperCase()}
-            name={u.dept}
-            text={
-              <>
-                {u.text} <span className="text-muted">· {u.when}</span>
-              </>
-            }
-          />
-        ))}
+      <SidePanel
+        title="Home Command"
+        feedTitle="Company updates"
+        footnote={`Stay in the loop · ${source.live ? "Announcements, live" : "snapshot"}`}
+      >
+        {data.updates.length ? (
+          data.updates.map((u, i) => (
+            <FeedItem
+              key={`${i}-${u.text}`}
+              initials={UPDATE_INITIALS[u.dept] ?? u.dept.slice(0, 2).toUpperCase()}
+              name={u.pinned ? `${u.dept} · Pinned` : u.dept}
+              text={
+                <>
+                  {u.text} <span className="text-muted">· {u.when}</span>
+                </>
+              }
+            />
+          ))
+        ) : (
+          <li className="py-4 text-[12.5px] text-muted">No published announcements right now.</li>
+        )}
       </SidePanel>
     </div>
   );
@@ -138,21 +144,44 @@ function TargetHint({ target }: { target?: Target }) {
   );
 }
 
-function NoMatch() {
-  return <div className="col-span-full rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">Nothing matches your search.</div>;
+function NoMatch({ text = "Nothing matches your search." }: { text?: string }) {
+  return <div className="col-span-full rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">{text}</div>;
+}
+
+/* Tool mark: the Tool Library logo when there is one, else the brand glyph. */
+function ToolMark({ tool, size }: { tool: Pick<Tool, "glyph" | "color" | "logo">; size: "sm" | "lg" }) {
+  const box = size === "lg" ? "size-16 rounded-[20px] text-[24px] shadow-card" : "size-[18px] rounded-full text-[9px]";
+  if (tool.logo)
+    return (
+      // Airtable attachment URLs are short-lived and aren't in next/image remotePatterns.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={tool.logo} alt="" loading="lazy" className={cx(box, "shrink-0 bg-white object-contain", size === "lg" && "p-2.5")} />
+    );
+  return (
+    <span className={cx(box, "grid shrink-0 place-items-center font-bold text-white")} style={{ background: tool.color }}>
+      {tool.glyph}
+    </span>
+  );
 }
 
 /* ---------------- Overview ---------------- */
 
-function Overview({ has }: { has: Has }) {
-  const navCards = NAV_CARDS.filter((n) => has(n.title));
-  const faqs = FAQS.filter((f) => has(f.q, f.a));
+function Overview({ has, data }: { has: Has; data: HomeData }) {
+  const navCards = data.navCards.filter((n) => has(n.title));
+  const faqs = data.faqs.filter((f) => has(f.q, f.a));
   return (
     <>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6">
-        {KPIS.map((k) => (
+        {data.kpis.map((k) => (
           <TargetLink key={k.label} target={k.target} label={k.label} className="card group flex flex-col p-5 transition hover:-translate-y-0.5">
-            <span className="text-[38px] font-extrabold leading-none tracking-tight">{k.value}</span>
+            <span className="flex items-start justify-between gap-2">
+              <span className="text-[38px] font-extrabold leading-none tracking-tight">{k.value}</span>
+              {k.snapshot && (
+                <span className="rounded-full bg-plane px-2 py-0.5 text-[10px] font-bold uppercase text-muted" title="No Airtable table holds this figure yet">
+                  Snapshot
+                </span>
+              )}
+            </span>
             <span className="mt-2 flex items-center justify-between gap-2 text-[12.5px] font-semibold text-ink-2">
               {k.label}
               <IconArrowRight width={15} height={15} className="shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-brand" />
@@ -172,7 +201,8 @@ function Overview({ has }: { has: Has }) {
           }
         />
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          {NORTH_STAR.map((g) => (
+          {data.northStar.length === 0 && <NoMatch text="No active North Star goals in Airtable." />}
+          {data.northStar.map((g) => (
             <div key={g.title} className="rounded-[20px] bg-plane p-5">
               <div className="text-[14px] font-extrabold leading-snug">{g.title}</div>
               <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white">
@@ -258,16 +288,16 @@ function Faq({ q, a }: { q: string; a: string }) {
 
 /* ---------------- Departments ---------------- */
 
-function Departments({ has }: { has: Has }) {
-  const list = DEPARTMENTS.filter((d) => has(d.name, d.desc, ...d.tools));
+function Departments({ has, data }: { has: Has; data: HomeData }) {
+  const list = data.departments.filter((d) => has(d.name, d.desc, ...d.tools, ...(d.heads ?? [])));
   return (
     <section className="card p-6">
-      <CardHead eyebrow="Find your team" title="Departments" sub="Each card opens that department's Airtable interface." />
+      <CardHead eyebrow="Find your team" title="Departments" sub="Each card opens that department's Airtable record." />
       <div className="mt-5 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
         {list.length ? (
           list.map((d) => (
             <TargetLink
-              key={d.name}
+              key={d.id ?? d.name}
               target={d.target}
               label={d.name}
               className="group flex flex-col overflow-hidden rounded-[20px] border border-line bg-white transition hover:-translate-y-0.5 hover:shadow-card"
@@ -279,19 +309,28 @@ function Departments({ has }: { has: Has }) {
                 </span>
                 <TargetHint target={d.target} />
               </div>
-              <p className="px-5 pt-3 text-[12.5px] leading-relaxed text-ink-2">{d.desc}</p>
+              {d.desc && <p className="px-5 pt-3 text-[12.5px] leading-relaxed text-ink-2">{d.desc}</p>}
+              {d.members != null && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 text-[11.5px] font-semibold text-ink-2">
+                  <span>{d.members} members</span>
+                  <span>{d.activePics ?? 0} active P.I.C.S</span>
+                  <span>{d.openAnt ?? 0} open ANT requests</span>
+                </div>
+              )}
+              {!!d.heads?.length && (
+                <p className="px-5 pt-2 text-[11.5px] text-muted">
+                  Head{d.heads.length > 1 ? "s" : ""}: {d.heads.join(", ")}
+                </p>
+              )}
               <div className="mt-auto px-5 pb-5 pt-4">
                 <div className="field-label">Related tools</div>
                 <div className="flex flex-wrap gap-1.5">
+                  {d.tools.length === 0 && <span className="text-[11.5px] text-muted">None linked in the Tool Library</span>}
                   {d.tools.map((tn) => {
-                    const t = TOOLS.find((x) => x.name === tn);
+                    const t = data.tools.find((x) => x.name === tn);
                     return (
                       <span key={tn} className="chip gap-1.5 pl-1">
-                        {t && (
-                          <span className="grid size-[18px] place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: t.color }}>
-                            {t.glyph}
-                          </span>
-                        )}
+                        {t && <ToolMark tool={t} size="sm" />}
                         {tn}
                       </span>
                     );
@@ -310,8 +349,9 @@ function Departments({ has }: { has: Has }) {
 
 /* ---------------- Tools ---------------- */
 
-function Tools({ has }: { has: Has }) {
-  const list = TOOLS.filter((t) => has(t.name, ...DEPARTMENTS.filter((d) => d.tools.includes(t.name)).map((d) => d.name)));
+function Tools({ has, data }: { has: Has; data: HomeData }) {
+  const list = data.tools.filter((t) => has(t.name, t.desc ?? "", ...(t.layers ?? []), ...t.departments));
+  const tile = "flex flex-col items-center rounded-[20px] bg-plane px-3 pb-4 pt-5 text-center";
   return (
     <section className="card p-6">
       <CardHead
@@ -327,14 +367,28 @@ function Tools({ has }: { has: Has }) {
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {list.length ? (
           list.map((t) => {
-            const usedBy = DEPARTMENTS.filter((d) => d.tools.includes(t.name)).map((d) => d.name);
-            return (
-              <div key={t.name} className="flex flex-col items-center rounded-[20px] bg-plane px-3 pb-4 pt-5 text-center">
-                <span className="grid size-16 place-items-center rounded-[20px] text-[24px] font-bold text-white shadow-card" style={{ background: t.color }}>
-                  {t.glyph}
-                </span>
+            const body = (
+              <>
+                <ToolMark tool={t} size="lg" />
                 <span className="mt-3 text-[14px] font-extrabold">{t.name}</span>
-                <span className="mt-1 text-[11px] leading-snug text-muted">{usedBy.length ? usedBy.join(" · ") : "Company-wide"}</span>
+                <span className="mt-1 text-[11px] leading-snug text-muted">{t.departments.length ? t.departments.join(" · ") : "Company-wide"}</span>
+              </>
+            );
+            return t.url ? (
+              <a
+                key={t.id ?? t.name}
+                href={t.url}
+                target="_blank"
+                rel="noopener"
+                title={t.desc}
+                aria-label={`${t.name} (opens in a new tab)`}
+                className={cx(tile, "transition hover:-translate-y-0.5 hover:shadow-card")}
+              >
+                {body}
+              </a>
+            ) : (
+              <div key={t.id ?? t.name} title={t.desc} className={tile}>
+                {body}
               </div>
             );
           })
@@ -348,9 +402,10 @@ function Tools({ has }: { has: Has }) {
 
 /* ---------------- Team resources ---------------- */
 
-function Resources({ has }: { has: Has }) {
-  const res = RESOURCES.filter((r) => has(r.name));
-  const subs = SUB_DASHBOARDS.filter((r) => has(r.name));
+function Resources({ has, data }: { has: Has; data: HomeData }) {
+  const res = data.resources.filter((r) => has(r.name, r.detail ?? ""));
+  const docs = data.docs.filter((d) => has(d.title, d.category, d.desc, ...d.departments));
+  const subs = data.subDashboards.filter((r) => has(r.name));
   const tile = "flex min-h-[92px] flex-col justify-between rounded-[20px] border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-card";
   return (
     <>
@@ -359,7 +414,7 @@ function Resources({ has }: { has: Has }) {
           eyebrow="Support"
           title="Team Resources"
           right={
-            <a href={RESOURCES_LINK} target="_blank" rel="noopener" className="btn btn-sm">
+            <a href={data.resourcesLink} target="_blank" rel="noopener" className="btn btn-sm">
               Open team resources <IconExternal width={13} height={13} />
             </a>
           }
@@ -368,7 +423,10 @@ function Resources({ has }: { has: Has }) {
           {res.length ? (
             res.map((r) => (
               <TargetLink key={r.name} target={r.target} label={r.name} className={tile}>
-                <span className="text-[14px] font-extrabold">{r.name}</span>
+                <span>
+                  <span className="block text-[14px] font-extrabold">{r.name}</span>
+                  {r.detail && <span className="mt-0.5 block text-[11.5px] font-semibold text-muted">{r.detail}</span>}
+                </span>
                 <TargetHint target={r.target} />
               </TargetLink>
             ))
@@ -377,6 +435,36 @@ function Resources({ has }: { has: Has }) {
           )}
         </div>
       </section>
+      {data.docs.length > 0 && (
+        <section className="card p-6">
+          <CardHead
+            eyebrow="Employee Resources"
+            title="Policies, SOPs & Agreements"
+            sub="From the Employee Resources table. Each opens its file, link or Airtable record."
+          />
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {docs.length ? (
+              docs.map((d) => (
+                <TargetLink
+                  key={d.id}
+                  target={d.target}
+                  label={d.title}
+                  className="flex flex-col gap-1.5 rounded-[20px] border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-card"
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="text-[13.5px] font-extrabold leading-snug">{d.title}</span>
+                    <span className="chip shrink-0 text-[10.5px]">{d.category}</span>
+                  </span>
+                  {d.desc && <span className="line-clamp-2 text-[12px] leading-relaxed text-ink-2">{d.desc}</span>}
+                  {d.departments.length > 0 && <span className="text-[11px] text-muted">{d.departments.join(" · ")}</span>}
+                </TargetLink>
+              ))
+            ) : (
+              <NoMatch />
+            )}
+          </div>
+        </section>
+      )}
       <section className="card p-6">
         <CardHead eyebrow="Productivity Center" title="Sub-Dashboards" sub="Airtable interface pages for each productivity area." />
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">

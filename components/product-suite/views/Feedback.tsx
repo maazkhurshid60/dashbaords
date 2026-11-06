@@ -3,7 +3,7 @@
 /* CUSTOMERS › FEEDBACK (vFeedback + summarize output) */
 import { cx } from "@/lib/utils";
 import { fmtD, SEV_ORDER, sevColor } from "../format";
-import { FB_WEEKS, fbIn, feat, matchQ, themeWeekly } from "../logic";
+import { FB_WEEKS, fbIn, feat, liveOpts, matchQ, themeWeekly } from "../logic";
 import { Card, Empty, Pill, Seg, SentPill, Small, Stat } from "../primitives";
 import { HBars, LineChart } from "../SuiteCharts";
 import { HiddenNote } from "../Shell";
@@ -128,7 +128,7 @@ export function FeedbackView() {
               label="Severity"
               value={I.sev ?? ""}
               onChange={act.isev}
-              options={[{ id: "", label: "All" }, ...SEV_ORDER.map((s) => ({ id: s, label: s }))]}
+              options={[{ id: "", label: "All" }, ...liveOpts(D, "feedback.sentiment", SEV_ORDER).map((s) => ({ id: s, label: s }))]}
             />
           </>
         }

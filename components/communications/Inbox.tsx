@@ -7,7 +7,7 @@ import { AT, atUrl } from "@/lib/product-data";
 import type { Ticket } from "@/lib/product-types";
 import { cx } from "@/lib/utils";
 import { fmtDT } from "@/components/product-suite/format";
-import { matchQ } from "@/components/product-suite/logic";
+import { liveOpts, matchQ } from "@/components/product-suite/logic";
 import { AirtableLink, ChipBtn, Empty, H5, Kpi, KpiRow, Pill, Seg, Small, selectCls } from "@/components/product-suite/primitives";
 import { HiddenNote } from "@/components/product-suite/Shell";
 import { useSuite } from "@/components/product-suite/useSuite";
@@ -258,7 +258,7 @@ function TicketPane({ t }: { t: Ticket }) {
         <label className="flex items-center gap-1.5 text-[12px] text-muted">
           About
           <select className={selectCls} value={t.intent} onChange={(e) => void c.tIntent(t.id, e.target.value)}>
-            {INTENTS.map((i) => (
+            {liveOpts(D, "comms.intent", INTENTS, t.intent).map((i) => (
               <option key={i} value={i}>
                 {intentLabel(i)}
               </option>

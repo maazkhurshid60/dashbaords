@@ -87,8 +87,10 @@ export function toneFor(lbl: string, num: string | number): Tone | "" {
 
 /* ---------- categorical colours (SERIES, fixed order; colour follows the entity) ---------- */
 export const PERSONA_ORDER = ["Angels", "Sellers", "Creators", "Pros", "Moguls", "Trends B2B", "Business Basic"];
+/** Colour slots follow the persona; Airtable calls the B2B persona "ACRYLICS Trends (B2B Enterprise)". */
 export const personaColor = (name: string | null | undefined) => {
-  const i = PERSONA_ORDER.indexOf(String(name));
+  const n = String(name);
+  const i = PERSONA_ORDER.findIndex((p) => p === n || (p === "Trends B2B" && /^ACRYLICS Trends/.test(n)));
   return i >= 0 ? SERIES[i] : "#9a9fad";
 };
 /** Feedback severity → fixed categorical slots (used by both the bars and the weekly line chart). */

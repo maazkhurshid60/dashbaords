@@ -6,7 +6,7 @@ import { AT, atUrl } from "@/lib/product-data";
 import { cx } from "@/lib/utils";
 import { ago, fmt$, fmtD, shortPics, STAGE } from "./format";
 import {
-  CL_GROUPS, clByKey, clClean, featPerf, isLate, roadRows, todayIso, type Checklist,
+  CL_GROUPS, clByKey, clClean, featPerf, isLate, liveOpts, roadRows, todayIso, type Checklist,
 } from "./logic";
 import {
   AirtableLink, Empty, H5, Help, Item, Kpi, MoodPill, PDot, Pill, SentPill, Seg, StagePill, StatusPill2, Small, TONE_PILL,
@@ -70,9 +70,9 @@ export function FeatureDrawer() {
       </div>
       <Field label="Stage" help="Changing this updates Product Features in Airtable">
         <select className="field" value={f.status} onChange={(e) => act.fstatus(f.id, e.target.value)}>
-          {["Backlog", "In Discovery", "In Development", "QA", "Live", "Deprecated"].map((x) => (
+          {liveOpts(D, "features.status", ["Backlog", "In Discovery", "In Development", "QA", "Live", "Deprecated"], f.status).map((x) => (
             <option key={x} value={x}>
-              {STAGE[x]}
+              {STAGE[x] || x}
             </option>
           ))}
         </select>
@@ -352,7 +352,7 @@ function ClBody({ cl }: { cl: Checklist }) {
   );
 }
 function ClRow({ cl, c }: { cl: Checklist; c: Checklist["items"][number] }) {
-  const { S, act } = useSuite();
+  const { D, S, act } = useSuite();
   const late = c.status !== "Completed" && !!c.due && c.due < todayIso;
   const open = S.clEdit === c.id;
   const done = c.status === "Completed";
@@ -413,7 +413,7 @@ function ClRow({ cl, c }: { cl: Checklist; c: Checklist["items"][number] }) {
           value={c.status}
           onChange={(e) => act.clStatus(c.id, e.target.value)}
         >
-          {["Not Started", "In Progress", "Blocked", "Completed"].map((s) => (
+          {liveOpts(D, "checklist.status", ["Not Started", "In Progress", "Blocked", "Completed"], c.status).map((s) => (
             <option key={s}>{s}</option>
           ))}
         </select>

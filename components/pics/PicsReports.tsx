@@ -4,12 +4,13 @@
 import { useState } from "react";
 import { IconDoc, IconExternal, IconPlus } from "@/components/icons";
 import { CardHead, Modal, useToast } from "@/components/ui";
-import { REAL_DEPARTMENTS, todayISO } from "@/lib/pics";
-import { REPORT_AUDIENCE, REPORT_PERIODS, REPORT_STATUS, REPORT_STATUS_TONE, REPORT_TYPES, periodLabel } from "@/lib/pics-reports";
+import { todayISO } from "@/lib/pics";
+import { REPORT_STATUS_TONE, periodLabel } from "@/lib/pics-reports";
 import type { PicsReport } from "@/lib/pics-types";
 import type { PicsRecord } from "@/lib/types";
 import { cx, fmt, plural } from "@/lib/utils";
 import { Field, Info, Note, Opts, ToggleChips, toggleIn } from "./pics-ui";
+import { usePicsOptions } from "./PicsOptionsContext";
 
 export function ReportStatus({ status }: { status: string }) {
   return (
@@ -42,6 +43,7 @@ export function ReportsView({
   onNew: () => void;
   onLaunchChat: () => void;
 }) {
+  const o = usePicsOptions();
   const q = query.trim().toLowerCase();
   const list = reports
     .filter((r) => filter === "All" || r.status === filter)
@@ -74,7 +76,7 @@ export function ReportsView({
         />
         <div className="mt-5 max-w-full">
           <div className="seg" role="group" aria-label="Filter reports by status">
-            {["All", ...REPORT_STATUS].map((t) => (
+            {["All", ...o.reportStatus].map((t) => (
               <button key={t} type="button" aria-pressed={filter === t} onClick={() => setFilter(t)}>
                 {t}
               </button>
@@ -180,28 +182,31 @@ export function ReportDetailModal({ report: r, pics, onClose }: { report: PicsRe
 
 export function NewReportModal({
   records,
+  live = false,
   onClose,
   onCreate,
 }: {
   records: PicsRecord[];
+  live?: boolean;
   onClose: () => void;
   onCreate: (r: PicsReport) => void;
 }) {
   const toast = useToast();
+  const o = usePicsOptions();
   const [f, setF] = useState({
     title: "",
-    reportType: REPORT_TYPES[0],
-    status: REPORT_STATUS[0],
-    period: REPORT_PERIODS[0],
-    week: "1",
+    reportType: o.reportTypes[0] ?? "",
+    status: o.reportStatus.includes("Not Started") ? "Not Started" : (o.reportStatus[0] ?? ""),
+    period: o.reportPeriods.includes("Weekly") ? "Weekly" : (o.reportPeriods[0] ?? ""),
+    week: o.weekNumbers[0] ?? "1",
     picsId: "",
     ant: "",
     preparedBy: "",
     reportRequest: "",
     deliveryLink: "",
   });
-  const [depts, setDepts] = useState<string[]>(["Operations"]);
-  const [audience, setAudience] = useState<string[]>(["Self / Internal Team"]);
+  const [depts, setDepts] = useState<string[]>(() => (o.departments.includes("Operations") ? ["Operations"] : []));
+  const [audience, setAudience] = useState<string[]>(() => o.reportAudience.slice(0, 1));
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const submit = () => {
@@ -232,7 +237,7 @@ export function NewReportModal({
       deliveryLink: f.deliveryLink.trim(),
       approved: f.status === "Approved",
     });
-    toast("Report added to Master Reports (session only — not yet synced to Airtable)");
+    if (!live) toast("Report added to Master Reports (session only — not yet synced to Airtable)");
   };
 
   return (
@@ -259,27 +264,27 @@ export function NewReportModal({
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Report type">
             <select className="field" value={f.reportType} onChange={(e) => set("reportType", e.target.value)}>
-              <Opts list={REPORT_TYPES} />
+              <Opts list={o.reportTypes} />
             </select>
           </Field>
           <Field label="Status">
             <select className="field" value={f.status} onChange={(e) => set("status", e.target.value)}>
-              <Opts list={REPORT_STATUS} />
+              <Opts list={o.reportStatus} />
             </select>
           </Field>
           <Field label="Reporting period">
             <select className="field" value={f.period} onChange={(e) => set("period", e.target.value)}>
-              <Opts list={REPORT_PERIODS} />
+              <Opts list={o.reportPeriods} />
             </select>
           </Field>
           <Field label="Week number">
             <select className="field" value={f.week} onChange={(e) => set("week", e.target.value)}>
-              <Opts list={WEEKS} />
+              <Opts list={o.weekNumbers} />
             </select>
           </Field>
         </div>
-        <ToggleChips label="Related department(s)" options={REAL_DEPARTMENTS} selected={depts} onToggle={(d) => setDepts((p) => toggleIn(p, d))} />
-        <ToggleChips label="Report audience" options={REPORT_AUDIENCE} selected={audience} onToggle={(a) => setAudience((p) => toggleIn(p, a))} />
+        <ToggleChips label="Related department(s)" options={o.departments} selected={depts} onToggle={(d) => setDepts((p) => toggleIn(p, d))} />
+        <ToggleChips label="Report audience" options={o.reportAudience} selected={audience} onToggle={(a) => setAudience((p) => toggleIn(p, a))} />
         <Field label="Related P.I.C.S">
           <select className="field" value={f.picsId} onChange={(e) => set("picsId", e.target.value)}>
             <option value="">None</option>
@@ -305,9 +310,12 @@ export function NewReportModal({
           <input type="url" className="field" value={f.deliveryLink} placeholder="https://…" onChange={(e) => set("deliveryLink", e.target.value)} />
         </Field>
       </div>
-      <Note>Saves to this session only. Writing back to the live Master Reports table needs a connected sync.</Note>
+      <Note>
+        {live
+          ? "Creates the report in the Airtable Master Reports table (Created Via: Dashboard form). Prepared-by initials and ANT names are linked when they match; Master Reports has no P.I.C.S field, so “Related P.I.C.S” is kept on this dashboard only."
+          : "Saves to this session only. Airtable is unavailable (snapshot data), so nothing is written to the base."}
+      </Note>
     </Modal>
   );
 }
 
-const WEEKS = Array.from({ length: 52 }, (_, i) => String(i + 1));

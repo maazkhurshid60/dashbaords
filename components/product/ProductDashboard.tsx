@@ -4,9 +4,9 @@
 import { buildSample, CFG, mulberry } from "@/lib/product-data";
 import type { Persona, ProductData, SuiteData } from "@/lib/product-types";
 import { ago } from "@/components/product-suite/format";
-import { NEW_ITEMS } from "@/components/product-suite/logic";
+import { NEW_ITEMS, setSuiteClock } from "@/components/product-suite/logic";
 import { SuitePage } from "@/components/product-suite/Shell";
-import { useSuite, type AppDef, type LivePayload } from "@/components/product-suite/useSuite";
+import { useSuite, type AppDef, type LivePayload, type SuiteServer } from "@/components/product-suite/useSuite";
 import { CustomersStrip, LtvView, SegmentsView } from "@/components/product-suite/views/Customers";
 import { FeaturesView } from "@/components/product-suite/views/Features";
 import { FeedbackView } from "@/components/product-suite/views/Feedback";
@@ -17,11 +17,12 @@ import { WebsiteView } from "@/components/product-suite/views/Website";
     Airtable table stay empty in live mode rather than showing sample rows. */
 const LIVE_KEYS = [
   "ants", "team", "sweep", "pics", "channels", "areas", "personas", "features", "feedback", "accounts", "revenue", "spend", "sprints", "backlog",
-  "health", "gates", "gtm", "releases", "pagePerf", "objectives", "themes", "adoption", "wau", "weeks", "cohorts", "experiments", "sitemapTotal",
+  "health", "gates", "gtm", "releases", "pagePerf", "objectives", "themes", "adoption", "wau", "weeks", "cohorts", "experiments", "sitemapTotal", "options",
 ] as const;
 
 export function mergeProductLive(j: LivePayload): SuiteData {
   const data = j.data || {};
+  setSuiteClock(true); // live rows are dated by the real clock
   const base = buildSample(mulberry(20261201)) as unknown as Record<string, unknown>;
   LIVE_KEYS.forEach((k) => {
     base[k] = k in data ? data[k] : Array.isArray(base[k]) ? [] : null;
@@ -32,6 +33,8 @@ export function mergeProductLive(j: LivePayload): SuiteData {
     const s: Partial<Persona> = sample.find((x) => x.name === p.name || x.full === p.name) || {};
     return { ...s, ...p, hex: s.hex || "#6B6E76", color: s.color || "var(--slate)" } as Persona;
   });
+  /* live mode: no example deployments / uptime / vitals — /api/product/site fills what it can check */
+  out.site = { ...out.site, status: "unknown", http: null, ms: null, checkedAt: null, ssl: null, deployments: [], uptime: [], vitals: null, errorRate: null };
   out.mode = "live";
   out.syncedAt = j.syncedAt || new Date().toISOString();
   out.warnings = j.warnings || [];
@@ -96,10 +99,11 @@ function SampleBanner() {
   );
 }
 
-export function ProductDashboard() {
+export function ProductDashboard({ server }: { server?: SuiteServer }) {
   return (
     <SuitePage
       app={PRODUCT_APP}
+      server={server}
       shell={{
         title: "Product Dashboard",
         bannerSample: <SampleBanner />,
@@ -116,7 +120,9 @@ export function ProductDashboard() {
         introExtra: { customers: CustomersStrip },
         segBar: ({ S, has }) =>
           S.tab === "customers" && (S.sub.customers === "ltv" || (S.sub.customers === "feedback" && has("User Feedback & Insights.Related Persona"))),
-        footerMeta: "Airtable VCG Intranet base · acrylics.world via /api/product/* · example snapshot anchored to Sep 28, 2026",
+        footerMeta: server?.live
+          ? "Live from the Airtable VCG Intranet base · acrylics.world checked via /api/product/site"
+          : "Airtable VCG Intranet base · acrylics.world via /api/product/* · example snapshot anchored to Sep 28, 2026",
       }}
     />
   );

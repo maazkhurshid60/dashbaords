@@ -11,7 +11,7 @@ import { ago, personaColor } from "./format";
 import { ClDrawer, FeatureDrawer, FindingDrawer, ManageDrawer, NoteDrawer } from "./drawers";
 import { AddFeedbackModal, DeployModal, HowtoModal } from "./modals";
 import { ChipBtn, Seg } from "./primitives";
-import { SuiteProvider, useIsClient, useSuite, type AppDef } from "./useSuite";
+import { SuiteProvider, useIsClient, useSuite, type AppDef, type SuiteServer } from "./useSuite";
 
 /* ---------- sync gate notes ---------- */
 export function PreviewRibbon() {
@@ -64,8 +64,9 @@ export function HiddenNote({ list }: { list: [string | string[], string][] }) {
 
 /* ---------- header controls ---------- */
 function StatusBar() {
-  const { D, act, cfg } = useSuite();
+  const { D, act, cfg, liveError } = useSuite();
   const live = D.mode === "live";
+  const offline = !live && cfg.live && !!liveError;
   const st = D.site.status;
   const siteDot = st === "up" ? "bg-good" : st === "down" ? "bg-bad" : st === "degraded" ? "bg-warn" : "bg-muted";
   const siteLbl = st === "up" ? "up" : st === "down" ? "down" : st === "degraded" ? "slow" : "not checked";
@@ -80,8 +81,12 @@ function StatusBar() {
         <span className={cx("size-2 rounded-full", live ? "bg-good" : "bg-warn")} />
         {live ? "Live" : "Example data"}
       </button>
-      <span className="text-[11.5px] font-medium text-muted">
-        {live ? `Airtable · updated ${ago(D.syncedAt)}` : "Not connected to Airtable yet · showing example data"}
+      <span className="text-[11.5px] font-medium text-muted" title={offline ? `Airtable: ${liveError}` : undefined}>
+        {live
+          ? `Airtable · updated ${ago(D.syncedAt)}`
+          : offline
+            ? "Couldn't reach Airtable · showing example data"
+            : "Not connected to Airtable yet · showing example data"}
       </span>
       <a className="btn btn-sm ml-auto" href={cfg.siteUrl} target="_blank" rel="noopener" title={`acrylics.world status: ${siteLbl}`}>
         <span className={cx("size-2 rounded-full", siteDot)} aria-label={`site ${siteLbl}`} />
@@ -216,11 +221,13 @@ function Skeleton({ title }: { title: string }) {
 }
 
 /** A suite page: renders on the client only (local clock, hash, storage) with the shared engine. */
-export function SuitePage({ app, shell, children }: { app: AppDef; shell: Omit<ShellProps, "showSegBar"> & { segBar?: (s: ReturnType<typeof useSuite>) => boolean }; children?: ReactNode }) {
+export function SuitePage({
+  app, shell, server, children,
+}: { app: AppDef; shell: Omit<ShellProps, "showSegBar"> & { segBar?: (s: ReturnType<typeof useSuite>) => boolean }; server?: SuiteServer; children?: ReactNode }) {
   const client = useIsClient();
   if (!client) return <Skeleton title={shell.title} />;
   return (
-    <SuiteProvider app={app}>
+    <SuiteProvider app={app} server={server}>
       <ShellWithSeg shell={shell} />
       {children}
     </SuiteProvider>

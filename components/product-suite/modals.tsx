@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui";
 import { Field } from "./drawers";
+import { SEV_ORDER } from "./format";
+import { liveOpts } from "./logic";
 import { useSuite } from "./useSuite";
 
 export function AddFeedbackModal() {
@@ -42,14 +44,14 @@ function AddFeedbackBody({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Where it came from">
           <select className="field" value={v.src} onChange={up("src")}>
-            {["In-App", "Survey", "Support Ticket", "User Interview", "Sales Call"].map((s) => (
+            {liveOpts(D, "feedback.source", ["In-App", "Survey", "Support Ticket", "User Interview", "Sales Call"], v.src).map((s) => (
               <option key={s}>{s}</option>
             ))}
           </select>
         </Field>
         <Field label="How serious">
           <select className="field" value={v.sev} onChange={up("sev")}>
-            {["Critical", "High", "Medium", "Low"].map((s) => (
+            {liveOpts(D, "feedback.sentiment", SEV_ORDER, v.sev).map((s) => (
               <option key={s}>{s}</option>
             ))}
           </select>

@@ -10,7 +10,7 @@ import type { Pics } from "@/lib/product-types";
 import { cx } from "@/lib/utils";
 import { fmtD, shortPics, STAGE, trunc } from "../format";
 import {
-  checklistsFor, clStats, clWork, in14, isDone, isLate, isOpenP, matchQ, msGroups, picsTree, roadRows, rowStats, todayIso,
+  checklistsFor, clStats, clWork, in14, isDone, isLate, isOpenP, liveOpts, matchQ, msGroups, picsTree, roadRows, rowStats, todayIso,
   type Stats, type WorkRow,
 } from "../logic";
 import { Empty, H5, Item, Kpi, KpiRow, Pill, Prog, pcTone, Seg, Small, Stat, StagePill, StatusPill2, selectCls } from "../primitives";
@@ -517,7 +517,7 @@ function LaunchDetail({ p }: { p: Pics }) {
                 key={g.name}
                 right={
                   <select aria-label={`${g.name} status`} className={selectCls} value={g.status} onChange={(e) => act.gate(i, e.target.value)}>
-                    {["Not Started", "In Progress", "Met"].map((s) => (
+                    {liveOpts(D, "gates.status", ["Not Started", "In Progress", "Met"], g.status).map((s) => (
                       <option key={s}>{s}</option>
                     ))}
                   </select>

@@ -1,28 +1,37 @@
 /* Derived metrics + shared calcs (the originals' DERIVED METRICS / SHARED CALCS /
    P.I.C.S CARDS / CHECKLISTS sections), as pure functions of the dataset. */
-import { DAY, TODAY, iso } from "@/lib/product-data";
+import { DAY, TODAY, iso, setLiveClock } from "@/lib/product-data";
 import type { Account, ChecklistItem, Feature, Feedback, Pics, PicsRow, SuiteData } from "@/lib/product-types";
 import { shortPics } from "./format";
 
-export const todayIso = iso(TODAY);
-export const in14 = iso(TODAY.getTime() + 14 * DAY);
+/* `let` exports (live bindings) so they follow the clock when live mode switches it. */
+export let todayIso = iso(TODAY);
+export let in14 = iso(TODAY.getTime() + 14 * DAY);
+/** Live Airtable data runs on the real clock; example data stays anchored to Sep 28, 2026. */
+export function setSuiteClock(live: boolean) {
+  setLiveClock(live);
+  todayIso = iso(TODAY);
+  in14 = iso(TODAY.getTime() + 14 * DAY);
+}
 
 /* ---------- Sync gate ---------- */
-/** NEW_ITEMS = things on the Omni build list. Example mode treats them as not built;
-    live mode uses the endpoint's `missing` list. */
-export const NEW_ITEMS = [
-  "Site Health Checks", "Feature Adoption Snapshots", "Feedback Themes",
-  "Accounts (Reference).MRR", "Accounts (Reference).Features Used", "Accounts (Reference).Adoption Stage", "Accounts (Reference).City",
-  "Accounts (Reference).Acquisition Channel", "Accounts (Reference).Last Active", "Accounts (Reference).NPS Score",
-  "User Feedback & Insights.Related Persona", "User Feedback & Insights.Theme", "User Feedback & Insights.Importance",
-  "User Feedback & Insights.Triage Status", "User Feedback & Insights.Customer Notified",
-  "Product Features.Product Area", "Customer Personas.Price Label", "IT & Systems Registry.Fix Task",
-  "Launch Criteria.Related P.I.C.S", "GTM Launches.Related P.I.C.S",
-];
-/** Communications adds these to the list (NEW_ITEMS.push in the original). */
-export const COMMS_NEW_ITEMS = [...NEW_ITEMS, "Announcements", "Communications.Channel: Community"];
+/** NEW_ITEMS / COMMS_NEW_ITEMS live in lib/product-data.ts so the server routes can check them too. */
+export { COMMS_NEW_ITEMS, NEW_ITEMS } from "@/lib/product-data";
 
-export const builtIn = (missing: string[], keys: string[]) => keys.every((k) => !missing.includes(k));
+/** Select choices: live mode uses the Airtable schema's options (data.options); example mode the
+    hardcoded list. A value the record already has is kept so the select can show it. */
+export function liveOpts(D: SuiteData, key: string, fallback: string[], current?: string | null): string[] {
+  const live = D.mode === "live" ? D.options?.[key] : undefined;
+  const list = live && live.length ? live : fallback;
+  return current && !list.includes(current) ? [current, ...list] : list;
+}
+/** true when live mode knows the choices of `key` and `value` isn't one of them */
+export const notAnOption = (D: SuiteData, key: string, value: string | null | undefined) => {
+  const live = D.mode === "live" ? D.options?.[key] : undefined;
+  return !!live?.length && value != null && value !== "" && !live.includes(value);
+};
+
+export const builtIn =(missing: string[], keys: string[]) => keys.every((k) => !missing.includes(k));
 
 /* ---------- segment + search ---------- */
 export const segOK = (seg: string[], name: string) => seg.length === 0 || seg.includes(name);

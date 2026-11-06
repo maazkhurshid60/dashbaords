@@ -11,6 +11,8 @@ export interface RoadmapRow {
   status?: string;
   /** Task Planning row this roadmap row is mirrored into (session sync). */
   tpId?: string;
+  /** Airtable record ID in "P.I.C.S Roadmaps" (live data only). */
+  atId?: string;
 }
 
 export interface PicsMeeting {
@@ -35,11 +37,15 @@ export interface ChecklistItem {
   complete?: boolean;
   overdue?: boolean;
   notes?: string;
+  /** Airtable record ID in "P.I.C.S Checklist" (live data only). */
+  atId?: string;
 }
 
 export interface ReviewActivity {
   label: string;
   status: string;
+  /** Airtable record ID of the linked "P.I.C.S Checklist" item (live data only). */
+  atId?: string;
 }
 
 export interface ReviewRound {
@@ -65,7 +71,7 @@ export interface PicsRecord {
   depts: string[];
   start: string;
   end: string;
-  leads: { i: string }[];
+  leads: { i: string; name?: string }[];
   meetingCount: number;
   activityCount: number;
   parentId?: string;
@@ -80,6 +86,8 @@ export interface PicsRecord {
   briefingLink?: string | null;
   liveSiteUrl?: string | null;
   active?: boolean;
+  /** "P.I.C.S Tag" (e.g. ACR-GTM-S21), live data only. */
+  tag?: string;
 }
 
 export interface Member {

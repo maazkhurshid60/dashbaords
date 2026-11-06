@@ -8,17 +8,14 @@ import { IconExternal, IconPlus, IconVideo } from "@/components/icons";
 import { Modal, StatusPill, useToast } from "@/components/ui";
 import {
   CHECKLIST_PAGE_SIZE,
-  PHASE_ORDER,
   ROADMAP_TYPE_KEY,
-  ROADMAP_TYPES,
-  STAGES,
-  TASK_STATUS,
   heatBucket,
   todayISO,
   markerKind,
   type MarkerKind,
 } from "@/lib/pics";
 import type { PicsMeeting, PicsRecord, ReviewRound, RoadmapRow } from "@/lib/types";
+import { withCurrent } from "@/lib/pics-options";
 import { cx, fmt, fmtDT, isoWeek, monthKeyFor, monthLabelFor, pctElapsed, plural, weekRangeFor } from "@/lib/utils";
 import {
   ChecklistRow,
@@ -35,6 +32,7 @@ import {
   StagePill,
   TypeBadge,
 } from "./pics-ui";
+import { usePicsOptions } from "./PicsOptionsContext";
 
 const dateKey = (d: string) => (d.length > 10 ? d.slice(0, 10) : d);
 const byDate = <T,>(get: (x: T) => string) => (a: T, b: T) => new Date(get(a)).getTime() - new Date(get(b)).getTime();
@@ -50,6 +48,10 @@ export interface DetailHandlers {
   onEditChecklist: (idx: number) => void;
   onUpdateRoadmapRow: (idx: number, row: RoadmapRow) => void;
   onSaveActivity: (rrIdx: number, actIdx: number, label: string, status: string) => void;
+  /** Moves the record to another Stage (saved to the Airtable "Stage" field when live). */
+  onChangeStage: (stage: string) => void;
+  /** Data is live from Airtable (edits save back) rather than the session-only snapshot. */
+  live: boolean;
 }
 
 export function RecordDetail({
@@ -67,11 +69,12 @@ export function RecordDetail({
   const [weekModal, setWeekModal] = useState<number | null>(null);
   const [editWeek, setEditWeek] = useState<number | null>(null);
 
+  const o = usePicsOptions();
   const pct = pctElapsed(r.start, r.end, new Date(todayISO()).getTime());
 
   const byPhase: Record<string, RoadmapRow[]> = {};
   r.roadmapRows.forEach((x) => (byPhase[x.phase || "Unphased"] ??= []).push(x));
-  const phases = [...PHASE_ORDER.filter((p) => byPhase[p]), ...Object.keys(byPhase).filter((p) => !PHASE_ORDER.includes(p))];
+  const phases = [...o.phases.filter((p) => byPhase[p]), ...Object.keys(byPhase).filter((p) => !o.phases.includes(p))];
   const meetings = [...(r.meetings ?? [])].sort(byDate((m) => m.date));
   const totalTimeline = r.roadmapRows.length + meetings.length;
 
@@ -99,6 +102,17 @@ export function RecordDetail({
           <span className="mt-1 flex flex-wrap items-center gap-1.5">
             <TypeBadge type={r.type} />
             <StagePill stage={r.stage} />
+            <label className="ml-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+              Move to
+              <select
+                className="field h-7 w-auto py-0 text-[11.5px]"
+                value={r.stage}
+                aria-label="Change stage"
+                onChange={(e) => h.onChangeStage(e.target.value)}
+              >
+                <Opts list={withCurrent(o.stages, r.stage)} />
+              </select>
+            </label>
           </span>
         }
       >
@@ -258,7 +272,7 @@ export function RecordDetail({
         />
       )}
       {editWeek != null && (
-        <RoadmapWeekEditor r={r} week={editWeek} onClose={() => setEditWeek(null)} onSave={h.onUpdateRoadmapRow} />
+        <RoadmapWeekEditor r={r} week={editWeek} live={h.live} onClose={() => setEditWeek(null)} onSave={h.onUpdateRoadmapRow} />
       )}
     </>
   );
@@ -409,11 +423,13 @@ function RoadmapWeekModal({
 function RoadmapWeekEditor({
   r,
   week,
+  live,
   onClose,
   onSave,
 }: {
   r: PicsRecord;
   week: number;
+  live: boolean;
   onClose: () => void;
   onSave: (idx: number, row: RoadmapRow) => void;
 }) {
@@ -429,22 +445,26 @@ function RoadmapWeekEditor({
             row={x}
             onSave={(row) => {
               onSave(idx, row);
-              toast(SAVED_TOAST);
+              // Live rows confirm (or revert) from the Airtable save instead.
+              if (!(live && /^rec/.test(row.atId ?? ""))) toast(SAVED_TOAST);
             }}
           />
         ))}
       </div>
       <Note>
-        Edits update this dashboard&apos;s cards, stat tiles and heatmaps immediately. They save to this session only — writing changes back to the
-        live Airtable base needs a connected sync.
+        {live
+          ? "Edits update this dashboard's cards, stat tiles and heatmaps immediately and save to the P.I.C.S Roadmaps table in Airtable (title, type, stage, due date). The Task Planning mirror stays session-only."
+          : "Edits update this dashboard's cards, stat tiles and heatmaps immediately. They save to this session only — Airtable is unavailable, so this is snapshot data."}
       </Note>
     </Modal>
   );
 }
 
 function RoadmapForm({ row, onSave }: { row: RoadmapRow; onSave: (r: RoadmapRow) => void }) {
+  const o = usePicsOptions();
   const [d, setD] = useState(row);
-  const typeOptions = ROADMAP_TYPES.includes(d.type) ? ROADMAP_TYPES : [d.type, ...ROADMAP_TYPES];
+  // Choices from the Airtable Roadmaps fields; a row's legacy value stays selectable so the form still shows it.
+  const typeOptions = withCurrent(o.roadmapTypes, row.type);
   return (
     <div className="space-y-3 rounded-2xl border border-line p-4">
       <Field label="Key outcome">
@@ -457,8 +477,9 @@ function RoadmapForm({ row, onSave }: { row: RoadmapRow; onSave: (r: RoadmapRow)
           </select>
         </Field>
         <Field label="Stage">
-          <select className="field" value={d.stage ?? ""} onChange={(e) => setD({ ...d, stage: e.target.value })}>
-            <Opts list={STAGES} />
+          <select className="field" value={d.stage ?? ""} onChange={(e) => setD({ ...d, stage: e.target.value || undefined })}>
+            {!row.stage && <option value="">—</option>}
+            <Opts list={withCurrent(o.roadmapStages, row.stage)} />
           </select>
         </Field>
         <Field label="Date">
@@ -735,13 +756,14 @@ function Para({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function ActivityRow({ label, status, onSave }: { label: string; status: string; onSave: (label: string, status: string) => void }) {
+  const o = usePicsOptions();
   const [l, setL] = useState(label);
   const [s, setS] = useState(status);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <input className="field min-w-0 flex-1 basis-[160px]" value={l} onChange={(e) => setL(e.target.value)} aria-label="Activity" />
       <select className="field w-auto" value={s} onChange={(e) => setS(e.target.value)} aria-label="Activity status">
-        <Opts list={TASK_STATUS} />
+        <Opts list={withCurrent(o.checklistStatus, status)} />
       </select>
       <button type="button" className="btn btn-sm" onClick={() => onSave(l, s)}>
         Save

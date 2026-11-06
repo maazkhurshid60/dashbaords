@@ -60,6 +60,8 @@ export interface Meeting {
 export type ReviewKind = "agenda" | "recap";
 
 export interface ScheduleTask {
+  /** Tasks Planning record ID (live data; the snapshot matches by label). */
+  taskId?: string;
   label: string;
   type: string;
   status: string;
@@ -93,6 +95,8 @@ export interface TaskEdit {
 }
 
 export interface TaskChecklistItem {
+  /** Tasks Planning record behind this item (live data only). Writes go to this record. */
+  taskId?: string;
   label: string;
   done: boolean;
   notes: string;
@@ -109,7 +113,18 @@ export interface ChecklistRecord {
   submittedAt: string | null;
   summary: string;
   items: TaskChecklistItem[];
+  /** Team Member Notes & Observations. */
   managerNotes: string;
+  /** Checklist Feedback (reviewer). Snapshot data keeps feedback in managerNotes. */
+  feedback?: string;
+  /** Checklist Approver names. */
+  approver?: string;
+  /** Week label, e.g. "Week 45". */
+  week?: string;
+  /** Monday (YYYY-MM-DD) of the checklist's week; null when Airtable has no week for it. */
+  weekStart?: string | null;
+  /** Related Goals names. */
+  goals?: string[];
 }
 
 export interface MasterReport {
@@ -131,4 +146,51 @@ export interface ReportContent {
   reportTitle: string;
   reportDate: string;
   html: string;
+}
+
+/* ---------------- whole-page bundle ---------------- */
+
+export interface WeekInfo {
+  /** ISO week number of the current Mon–Fri week. */
+  number: number;
+  /** "Week 45" */
+  label: string;
+  /** "Nov 2–6, 2026" */
+  range: string;
+  /** Monday of the current week, YYYY-MM-DD. */
+  start: string;
+  /** "November 2026" (month of today). */
+  monthLong: string;
+  /** "Nov 2026" */
+  monthShort: string;
+}
+
+/** Everything the Productivity Center renders, from Airtable (live) or the bundled snapshot. */
+export interface ProductivityData {
+  /** The dataset's "today" (ISO instant); every relative view anchors here. */
+  today: string;
+  week: WeekInfo;
+  members: Member[];
+  directory: Record<string, DirectoryEntry>;
+  tasksThisMonth: { total: number; byStatus: Record<string, number> };
+  /** Recurring Mon–Fri hours per active member from Team Availability (null = not set). */
+  availability: Record<string, (number | null)[]>;
+  availabilitySet: boolean;
+  /** Weekly Schedules of the active roster, 12 weeks back to 8 ahead (oldest first). */
+  schedules: Schedule[];
+  /** Task Checklists of the active roster for the same window, plus any checklist still awaiting review. */
+  checklists: ChecklistRecord[];
+  reports: MasterReport[];
+  reportStatusOptions: string[];
+  reportContent: Record<string, ReportContent>;
+  /** Comprehensive report card: this week's Weekly Pulse record + the latest generated Pulse / ANT text. */
+  comprehensive: {
+    current: { title: string; status: string; contentKey: string | null } | null;
+    pulse: ReportContent | null;
+    ant: ReportContent | null;
+  };
+  tasks: PlanningTask[];
+  meetings: Meeting[];
+  /** Whether edits are written back to Airtable (live data) or kept in this session (snapshot). */
+  writable: boolean;
 }

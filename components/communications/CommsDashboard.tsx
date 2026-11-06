@@ -6,10 +6,10 @@ import { buildComms } from "@/lib/comms-data";
 import { COMMS_CFG } from "@/lib/product-data";
 import type { SuiteData } from "@/lib/product-types";
 import { ago } from "@/components/product-suite/format";
-import { COMMS_NEW_ITEMS } from "@/components/product-suite/logic";
+import { COMMS_NEW_ITEMS, setSuiteClock } from "@/components/product-suite/logic";
 import { Pill } from "@/components/product-suite/primitives";
 import { SuitePage } from "@/components/product-suite/Shell";
-import { useSuite, type AppDef, type LivePayload } from "@/components/product-suite/useSuite";
+import { useSuite, type AppDef, type LivePayload, type SuiteServer } from "@/components/product-suite/useSuite";
 import { bucket, visibleTickets } from "./comms";
 import { InboxView } from "./Inbox";
 import { InsightsView } from "./Insights";
@@ -17,11 +17,23 @@ import { UpdatesView, UpModal } from "./Updates";
 
 export function mergeCommsLive(j: LivePayload): SuiteData {
   const data = j.data || {};
+  setSuiteClock(true); // live rows are dated by the real clock
   const base = buildComms() as unknown as Record<string, unknown>;
-  ["tickets", "team", "announcements", "depts"].forEach((k) => {
+  const LIVE = ["tickets", "team", "announcements", "depts"];
+  LIVE.forEach((k) => {
     base[k] = k in data ? data[k] : [];
   });
+  /* The shared engine also carries Product's example sections; Communications doesn't show them,
+     but empty them in live mode so no example rows can surface (e.g. through search). */
+  Object.keys(base).forEach((k) => {
+    if (!LIVE.includes(k) && Array.isArray(base[k])) base[k] = [];
+  });
   const out = base as unknown as SuiteData;
+  /* select choices from the Airtable schema (Status, Intent, Announcements Type / Target Page …) */
+  out.options = (data.options as Record<string, string[]> | undefined) || null;
+  /* no sign-in yet, so live mode doesn't know who is posting (the example said "Isis Darks — Admin") */
+  out.me = "";
+  out.meRole = "";
   out.mode = "live";
   out.syncedAt = j.syncedAt || new Date().toISOString();
   out.warnings = j.warnings || [];
@@ -80,10 +92,11 @@ function InboxBadge() {
   ) : null;
 }
 
-export function CommsDashboard() {
+export function CommsDashboard({ server }: { server?: SuiteServer }) {
   return (
     <SuitePage
       app={COMMS_APP}
+      server={server}
       shell={{
         title: "Communications Dashboard",
         bannerSample: <SampleBanner />,
@@ -91,7 +104,9 @@ export function CommsDashboard() {
         views: { inbox: InboxView, insights: InsightsView, updates: UpdatesView },
         tabBadge: (k) => (k === "inbox" ? <InboxBadge /> : null),
         extraModals: <UpModal />,
-        footerMeta: "Communications table · Gmail via SUCANT's Email Intake Scan · example snapshot anchored to Sep 28, 2026",
+        footerMeta: server?.live
+          ? "Live from the Airtable Communications table · Gmail via SUCANT's Email Intake Scan"
+          : "Communications table · Gmail via SUCANT's Email Intake Scan · example snapshot anchored to Sep 28, 2026",
       }}
     />
   );

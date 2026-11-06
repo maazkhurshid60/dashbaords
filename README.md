@@ -22,25 +22,28 @@ npm run build && npm start
 
 ## Data
 
-Every page currently runs on a snapshot or on example data. Edits stay in the browser session, and the pages say so.
+Every page reads the Airtable base **VCG Intranet** (`appLH1D7ME6mU1zgE`) on the server and saves edits back to it. Reads are cached for 60 seconds per table. If Airtable can't be reached, the page falls back to the bundled snapshot (`lib/*-data.ts`, `lib/pics-records.ts`, …) and its badge says "Snapshot data" instead of "Live from Airtable".
 
-- Home, P.I.C.S, Productivity: snapshots of the Airtable base **VCG Intranet** (`appLH1D7ME6mU1zgE`), stored in `lib/*-data.ts`, `lib/pics-*.ts` and `lib/productivity-*.ts`.
-- Product, Communications: the client's seeded example data (`lib/product-data.ts`, `lib/comms-data.ts`). There is also a live mode that calls these endpoints:
+`.env.local` (server only, git-ignored):
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/product/data`, `GET /api/comms/data` | `{ok, data, syncedAt, warnings, missing}` |
-| `GET /api/product/site` | `{site:{status, http, ms, checkedAt, ssl, deployments, uptime, vitals, errorRate}}` |
-| `POST /api/product/write` | `{table, recordId, fields}`, `{table, create:true, fields}`, or `{action:'prantSweep'\|'dismissFix'\|'assignFix', …}` |
-| `POST /api/product/deploy` | `{action:'redeploy'\|'promote'\|'rollback', deploymentId}` |
-| `POST /api/chat` | `{ant, message, log}` → `{reply}` (Claude, AI assistant) |
+```
+AIRTABLE_TOKEN=pat…            # scopes: data.records:read, data.records:write, schema.bases:read
+AIRTABLE_BASE_ID=appLH1D7ME6mU1zgE
+ANTHROPIC_API_KEY=sk-ant-…     # optional: AI chat (/api/chat). Without it the route returns 503.
+```
 
-Live mode stays off until the endpoints exist. To turn it on, set `NEXT_PUBLIC_VCG_LIVE=1` (same-origin routes) or `NEXT_PUBLIC_VCG_API_BASE=<url>`.
+| Page | Loader | Write routes |
+|---|---|---|
+| Home | `lib/home-live.ts` | none (read-only) |
+| P.I.C.S | `lib/pics-live.ts` | `/api/pics`, `/api/pics/[id]`, `/api/pics/checklist[/id]`, `/api/pics/roadmap[/id]`, `/api/pics/reports` |
+| Productivity | `lib/productivity-live.ts` | `/api/productivity/{tasks,checklists,meetings,reports}/[id]` |
+| Product, Communications | `lib/product-live.server.ts` (`/api/product/data`, `/api/comms/data`) | `/api/product/write` |
 
-### Going live (Phase 1)
-1. Create an Airtable Personal Access Token (`data.records:read`, `data.records:write`, `schema.bases:read`) for the base, and an Anthropic API key for the chat.
-2. Put them in `.env.local` as `AIRTABLE_TOKEN=…` and `ANTHROPIC_API_KEY=…`. **Never expose them to the browser.**
-3. Add route handlers under `app/api/…` that call Airtable and Claude on the server, then swap each page's seed imports for those routes.
+Shared client: `lib/airtable.server.ts`. Every write passes an explicit allow-list of fields, and select values must be existing Airtable choices (no new options are created).
+
+Not wired yet: Vercel deployments/redeploy on Product (`/api/product/deploy` returns 501 until a Vercel token is added), Google Calendar.
+
+**Before deploying:** there is no login yet, and the write routes change real Airtable data. Add authentication first.
 
 ## Structure
 

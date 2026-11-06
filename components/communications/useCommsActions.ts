@@ -4,6 +4,7 @@
    previews (example data): tWrite / tDraft / tSend / tClose / tReopen / upWrite … */
 import { AT } from "@/lib/product-data";
 import type { Announcement, Ticket } from "@/lib/product-types";
+import { notAnOption } from "@/components/product-suite/logic";
 import { useSuite } from "@/components/product-suite/useSuite";
 import { aiDraft, customDefaults } from "./comms";
 
@@ -15,6 +16,12 @@ export function useCommsActions() {
   const tk = (id: string) => (D.tickets || []).find((t) => t.id === id);
 
   async function tWrite(t: Ticket, ch: TicketChange, label: string) {
+    /* only write Status / Intent values the live Communications table actually has */
+    const off = (["status", "intent"] as const).find((k) => k in ch && notAnOption(D, "comms." + k, ch[k]));
+    if (off) {
+      toast(`“${ch[off]}” isn't a Communications ${off === "status" ? "Status" : "Intent"} option in Airtable — nothing was saved`);
+      return;
+    }
     const m = AT.comms.f || {};
     const f: Record<string, unknown> = {};
     if ("status" in ch) f[m.status] = ch.status;
@@ -51,6 +58,13 @@ export function useCommsActions() {
       if (c) Object.assign(c, rec);
       else list.unshift({ id: newId, ...rec });
     };
+    const badOpt = (
+      [["announcements.page", rec.page, "Target Page"], ["announcements.type", rec.type, "Type"], ["announcements.status", rec.status, "Status"]] as const
+    ).find(([k, val]) => notAnOption(D, k, val));
+    if (badOpt) {
+      toast(`“${badOpt[1]}” isn't an Announcements ${badOpt[2]} option in Airtable — nothing was saved`);
+      return;
+    }
     if (D.mode === "live" && built("Announcements")) {
       const fields: Record<string, unknown> = {
         Title: rec.title, Message: rec.body, Page: rec.page, Type: rec.type, "Send To": rec.to, Pinned: rec.pinned, "Publish At": rec.date, Status: rec.status,

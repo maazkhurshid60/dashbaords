@@ -4,6 +4,7 @@
 import { SERIES } from "@/components/charts";
 import type { Tone } from "@/components/product-suite/format";
 import { fmtD } from "@/components/product-suite/format";
+import { liveOpts } from "@/components/product-suite/logic";
 import { DAY, TODAY, iso } from "@/lib/product-data";
 import type { Announcement, SuiteData, Ticket } from "@/lib/product-types";
 
@@ -90,8 +91,12 @@ export const gmailLink = (t: Ticket) => {
 };
 
 /* ---------- Updates (Announcements) ---------- */
-export const UP_PAGES = (D: SuiteData) => ["Home", ...(D.depts || []).map((d) => d.name)];
+/* Example mode: Home + every department, and the original's six types. Live mode: the choices of
+   Announcements › Target Page / Type in Airtable (anything else would be refused on save). */
 export const UP_TYPES = ["News", "Announcement", "Release", "Policy", "Event", "Alert"];
+export const UP_PAGES = (D: SuiteData) => liveOpts(D, "announcements.page", ["Home", ...(D.depts || []).map((d) => d.name)]);
+export const upTypes = (D: SuiteData) => liveOpts(D, "announcements.type", UP_TYPES);
+/** Audience is free text in Airtable (no choices), so these destinations stay a fixed list in both modes. */
 export const UP_TYPE_TONE: Record<string, Tone> = { News: "plain", Announcement: "info", Release: "good", Policy: "purple", Event: "teal", Alert: "bad" };
 export const UP_DESTS = ["Slack #general", "Slack #acrylics", "Email · whole team", "Email · department only"];
 export const upStatus = (a: Announcement) =>

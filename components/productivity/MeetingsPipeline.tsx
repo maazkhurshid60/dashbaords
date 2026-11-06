@@ -1,35 +1,28 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Donut, SERIES, type DonutDatum } from "@/components/charts";
 import { IconArrowRight, IconCalendar, IconChevron, IconChevronLeft } from "@/components/icons";
 import { CardHead } from "@/components/ui";
-import {
-  TODAY_KEY,
-  buildCalendarCells,
-  fmtKey,
-  groupReviewMeetingsByDept,
-  meetingsByDay,
-  meetingsInMonth,
-  monthLabel,
-  pipelineMonth,
-} from "@/lib/productivity-logic";
-import { MEETINGS_MASTER } from "@/lib/productivity-meetings";
+import { buildCalendarCells, fmtKey, groupReviewMeetingsByDept, monthLabel } from "@/lib/productivity-logic";
 import type { Meeting, ReviewKind } from "@/lib/productivity-types";
 import { cx, fmtDT, plural } from "@/lib/utils";
+import { useProductivity } from "./context";
 import { IconChevronRight, SmallTile, type Hit } from "./shared";
 
 /* Department colors are fixed by overall meeting volume, so a department keeps its color
    in every month. More than 7 departments would fold the tail into "Other". */
-const DEPT_ORDER = (() => {
-  const counts: Record<string, number> = {};
-  MEETINGS_MASTER.forEach((m) => m.depts.forEach((d) => (counts[d] = (counts[d] ?? 0) + 1)));
-  return Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
-})();
 const OTHER = "Other";
-const FOLD = DEPT_ORDER.length > SERIES.length;
-const deptBucket = (d: string) => (FOLD && DEPT_ORDER.indexOf(d) >= SERIES.length - 1 ? OTHER : d);
-const deptColor = (d: string) => (d === OTHER ? SERIES[SERIES.length - 1] : SERIES[DEPT_ORDER.indexOf(d)]);
+function deptPalette(meetings: Meeting[]) {
+  const counts: Record<string, number> = {};
+  meetings.forEach((m) => m.depts.forEach((d) => (counts[d] = (counts[d] ?? 0) + 1)));
+  const order = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  const fold = order.length > SERIES.length;
+  return {
+    deptBucket: (d: string) => (fold && order.indexOf(d) >= SERIES.length - 1 ? OTHER : d),
+    deptColor: (d: string) => (d === OTHER ? SERIES[SERIES.length - 1] : SERIES[Math.max(0, order.indexOf(d))]),
+  };
+}
 
 const PER_PAGE = 3;
 
@@ -49,6 +42,8 @@ export function MeetingsPipelineView({
   const [expanded, setExpanded] = useState<Record<ReviewKind, Set<string>>>(() => ({ agenda: new Set(), recap: new Set() }));
   const agendasRef = useRef<HTMLDivElement>(null);
   const recapsRef = useRef<HTMLDivElement>(null);
+  const { meetings: allMeetings, pipelineMonth, meetingsInMonth, writable } = useProductivity();
+  const { deptBucket, deptColor } = useMemo(() => deptPalette(allMeetings), [allMeetings]);
 
   const { year, month } = pipelineMonth(offset);
   const next = pipelineMonth(offset + 1);
@@ -146,7 +141,7 @@ export function MeetingsPipelineView({
     <section className="card p-6">
       <CardHead
         icon={<IconCalendar width={20} height={20} />}
-        eyebrow="Meetings Master · synced from Airtable"
+        eyebrow={`Meetings Master · ${writable ? "live from Airtable" : "Airtable snapshot"}`}
         title="Meetings Pipeline"
         right={
           <div className="flex flex-wrap items-center gap-2">
@@ -164,7 +159,8 @@ export function MeetingsPipelineView({
       />
       <p className="mt-4 rounded-2xl bg-brand-soft px-4 py-3 text-[12px] font-medium leading-relaxed text-brand">
         The success pipeline for meeting agendas and recaps in {label}. Agendas and recaps ready for review are listed below — open one to
-        see its full details and approve it. Approvals update this view for the session only, not Airtable.
+        see its full details and approve it.{" "}
+        {writable ? "Approving ticks Agenda Approved / Recap Approved on the Meetings Master record." : "Approvals update this view for the session only, not Airtable."}
       </p>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -243,7 +239,7 @@ export function MeetingsPipelineView({
       </div>
 
       <p className="mt-6 text-[11.5px] text-muted">
-        Pulled from Meetings Master (Airtable) — {MEETINGS_MASTER.length} records synced. Click a meeting card or a calendar day for full
+        Pulled from Meetings Master (Airtable) — {allMeetings.length} records {writable ? "live" : "in the snapshot"}. Click a meeting card or a calendar day for full
         details.
       </p>
     </section>
@@ -278,6 +274,7 @@ function DeptLegendRow({ d, total, meetings }: { d: DonutDatum; total: number; m
 }
 
 function MiniCalendar({ year, month, heading, onDay }: { year: number; month: number; heading: string; onDay: (key: string) => void }) {
+  const { meetingsByDay, meetingsInMonth, TODAY_KEY } = useProductivity();
   const byDay = meetingsByDay(meetingsInMonth(year, month));
   const cells = buildCalendarCells(year, month);
   return (

@@ -3,12 +3,12 @@
 /* The shared engine: dataset + UI state, the data layer (api / loadLive /
    refreshSite / write / writeCreate / fixCall) and every action of the originals'
    ACT / CHG tables. Pages provide an AppDef; views read everything via useSuite(). */
-import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useToast } from "@/components/ui";
 import { AT, DAY, TODAY, iso, type SuiteConfig } from "@/lib/product-data";
 import type { ChecklistItem, Feedback, SuiteData } from "@/lib/product-types";
 import { fmtD, shortPics, STAGE } from "./format";
-import { builtIn, clItem, fbIn, feat, personaOf, type PrioWeights } from "./logic";
+import { builtIn, clItem, fbIn, feat, notAnOption, personaOf, type PrioWeights } from "./logic";
 
 /* ---------------- app definition ---------------- */
 export type AppKey = "product" | "comms";
@@ -157,10 +157,17 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /* ---------------- the hook ---------------- */
 export interface SuiteInitial { ui?: Partial<UiState>; drawer?: DrawerState; modal?: ModalState }
-function useSuiteEngine(app: AppDef, initial?: SuiteInitial) {
+/** What the server page decided: `live` = Airtable is configured (turns live mode on even without
+    NEXT_PUBLIC_VCG_LIVE); `payload` = the first /data response, read server-side, so the page opens on live data. */
+export interface SuiteServer { live?: boolean; payload?: LivePayload | null }
+function useSuiteEngine(app: AppDef, initial?: SuiteInitial, server?: SuiteServer) {
   const toast = useToast();
-  const { cfg } = app;
-  const [D, setD] = useState<SuiteData>(() => app.build());
+  const serverLive = !!server?.live;
+  const cfg = useMemo<SuiteConfig>(() => (serverLive && !app.cfg.live ? { ...app.cfg, live: true } : app.cfg), [app.cfg, serverLive]);
+  const firstLive = !!(server?.payload?.ok && server.payload.data);
+  const [D, setD] = useState<SuiteData>(() => (firstLive ? app.merge(server!.payload!) : app.build()));
+  /** why the last live load failed (shown in the status bar); null when fine or not tried */
+  const [liveError, setLiveError] = useState<string | null>(() => (server?.live && !firstLive ? server?.payload?.error || null : null));
   const [S, setS] = useState<UiState>(() => ({ ...initialState(app), ...initial?.ui }));
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState<DrawerState>(initial?.drawer ?? null);
@@ -195,7 +202,11 @@ function useSuiteEngine(app: AppDef, initial?: SuiteInitial) {
           headers: { "Content-Type": "application/json", ...(key ? { "x-vcg-key": key } : {}), ...((opts.headers as Record<string, string>) || {}) },
         });
         clearTimeout(h);
-        if (!r.ok) throw new Error("HTTP " + r.status);
+        if (!r.ok) {
+          /* the /api routes answer {ok:false, error} — show that instead of a bare status */
+          const j = (await r.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(j?.error || "HTTP " + r.status);
+        }
         return (await r.json()) as T;
       } finally {
         clearTimeout(h);
@@ -233,19 +244,27 @@ function useSuiteEngine(app: AppDef, initial?: SuiteInitial) {
   const loadLive = useCallback(async () => {
     if (!cfg.live) return; // example data until the backend is wired up
     try {
-      const j = await api(cfg.ep.data);
-      if (!j || !j.ok || !j.data) throw new Error("bad payload");
-      setD(app.merge(j));
-    } catch {
-      /* setMode('sample'): the page keeps (or falls back to) example data; the banner explains why. */
+      const j = await api(cfg.ep.data, {}, 20000); // a cold read walks ~20 Airtable tables
+      if (!j || !j.ok || !j.data) throw new Error(j?.error || "bad payload");
+      setD((prev) => {
+        const next = app.merge(j);
+        if (prev.site.live) next.site = prev.site; // keep the last real site check until refreshSite() replaces it
+        return next;
+      });
+      setLiveError(null);
+    } catch (e) {
+      /* setMode('sample'): the page keeps (or falls back to) example data; the status bar says why. */
+      setLiveError(errMsg(e));
     }
     void refreshSite();
   }, [api, app, cfg.live, cfg.ep.data, refreshSite]);
 
+  /* first load: skip the data fetch when the server already sent it (the site check still runs) */
+  const [skipFirst] = useState(firstLive);
   useEffect(() => {
-    const h = setTimeout(() => void loadLive(), 0);
+    const h = setTimeout(() => void (skipFirst ? refreshSite() : loadLive()), 0);
     return () => clearTimeout(h);
-  }, [loadLive]);
+  }, [loadLive, refreshSite, skipFirst]);
   const mode = D.mode;
   useEffect(() => {
     const h = setInterval(() => {
@@ -533,6 +552,10 @@ function useSuiteEngine(app: AppDef, initial?: SuiteInitial) {
       const f = feat(D, fid);
       const cur = D.pics.find((p) => p.id === (S.picsNode || S.pics));
       if (!f || !cur) return;
+      if (notAnOption(D, "roadmaps.type", "Task") || notAnOption(D, "roadmaps.status", "Not Started")) {
+        toast("P.I.C.S Roadmaps no longer has the Task type / Not Started status — nothing was added");
+        return;
+      }
       const row = { label: f.name, type: "Task", date: iso(TODAY.getTime() + 14 * DAY), phase: "", status: "Not Started" };
       void writeCreate(
         "roadmaps",
@@ -654,7 +677,7 @@ function useSuiteEngine(app: AppDef, initial?: SuiteInitial) {
   };
 
   return {
-    app, cfg, D, S, set, update, query, setQuery, q, has, built, toast, api, loadLive, refreshSite, write, writeCreate, fixCall, clSet,
+    app, cfg, D, S, set, update, query, setQuery, q, has, built, toast, api, loadLive, refreshSite, write, writeCreate, fixCall, clSet, liveError,
     drawer, setDrawer, modal, setModal, closeAll, act,
   };
 }
@@ -663,8 +686,8 @@ export type Suite = ReturnType<typeof useSuiteEngine>;
 const SuiteCtx = createContext<Suite | null>(null);
 
 /** `initial` lets an embedding page (or a test) open a tab, drawer or modal up front. */
-export function SuiteProvider({ app, initial, children }: { app: AppDef; initial?: SuiteInitial; children: ReactNode }) {
-  const suite = useSuiteEngine(app, initial);
+export function SuiteProvider({ app, initial, server, children }: { app: AppDef; initial?: SuiteInitial; server?: SuiteServer; children: ReactNode }) {
+  const suite = useSuiteEngine(app, initial, server);
   return <SuiteCtx.Provider value={suite}>{children}</SuiteCtx.Provider>;
 }
 export function useSuite() {

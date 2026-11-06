@@ -12,7 +12,7 @@ import { ChipBtn, Empty, H5, Kpi, KpiRow, Pill, Small } from "@/components/produ
 import { Field } from "@/components/product-suite/drawers";
 import { HiddenNote } from "@/components/product-suite/Shell";
 import { useSuite } from "@/components/product-suite/useSuite";
-import { UP_DESTS, UP_PAGES, UP_ST_TONE, UP_TYPE_TONE, UP_TYPES, tidy, upStatus } from "./comms";
+import { UP_DESTS, UP_PAGES, UP_ST_TONE, UP_TYPE_TONE, tidy, upStatus, upTypes } from "./comms";
 import { useCommsActions } from "./useCommsActions";
 
 export function UpdatesView() {
@@ -43,9 +43,13 @@ export function UpdatesView() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Small>
-          Posting as <b className="text-ink">{D.me || "Isis Darks"}</b> · {D.meRole || "Admin — can post to every page"}
-        </Small>
+        {D.mode === "live" ? (
+          <Small>Saves to the Airtable Announcements table · Posted By is left for Airtable to fill (the intranet has no sign-in yet)</Small>
+        ) : (
+          <Small>
+            Posting as <b className="text-ink">{D.me || "Isis Darks"}</b> · {D.meRole || "Admin — can post to every page"}
+          </Small>
+        )}
         <button type="button" className="btn btn-brand" onClick={c.upNew}>
           + Create new
         </button>
@@ -91,7 +95,7 @@ export function UpdatesView() {
               </ChipBtn>
             ))}
             <span className="w-2" />
-            {["All", ...UP_TYPES].map((k) => (
+            {["All", ...upTypes(D)].map((k) => (
               <ChipBtn key={k} on={S.upType === k} onClick={() => c.upType(k)}>
                 {k === "All" ? "Any type" : k}
               </ChipBtn>
@@ -173,11 +177,13 @@ export function UpModal() {
 function UpModalBody({ a, onClose }: { a?: Announcement; onClose: () => void }) {
   const { D, toast } = useSuite();
   const c = useCommsActions();
+  const pages = UP_PAGES(D);
+  const types = upTypes(D);
   const [v, setV] = useState({
     title: a?.title || "",
     body: a?.body || "",
-    page: a?.page || "Home",
-    type: a?.type || "News",
+    page: a?.page || (pages.includes("Home") ? "Home" : pages[0] || ""),
+    type: a?.type || (types.includes("News") ? "News" : types[0] || ""),
     to: a?.to || ([] as string[]),
     pinned: !!a?.pinned,
     date: toLocalInput(a?.date || ""),
@@ -235,14 +241,14 @@ function UpModalBody({ a, onClose }: { a?: Announcement; onClose: () => void }) 
       <div className="grid gap-x-3 sm:grid-cols-2">
         <Field label="Post on page">
           <select className="field" value={v.page} onChange={(e) => setV({ ...v, page: e.target.value })}>
-            {UP_PAGES(D).map((p) => (
+            {(pages.includes(v.page) ? pages : [v.page, ...pages]).map((p) => (
               <option key={p}>{p}</option>
             ))}
           </select>
         </Field>
         <Field label="Type">
           <select className="field" value={v.type} onChange={(e) => setV({ ...v, type: e.target.value })}>
-            {UP_TYPES.map((p) => (
+            {(types.includes(v.type) ? types : [v.type, ...types]).map((p) => (
               <option key={p}>{p}</option>
             ))}
           </select>

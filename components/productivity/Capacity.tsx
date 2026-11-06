@@ -1,22 +1,28 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Donut, DonutLegend, GroupedBars, HEAT, PAIR, SERIES, type DonutDatum } from "@/components/charts";
 import { IconChevron, IconChevronLeft, IconPie } from "@/components/icons";
 import { Avatar, CardHead, Select } from "@/components/ui";
-import { ACTIVE_MEMBERS, AVAILABILITY_SET } from "@/lib/productivity-data";
-import { capWeekLabels, capWeekRangeLabel, capWeekSublabels, dailyLoadInWeek, tasksByMemberInWeek } from "@/lib/productivity-logic";
 import type { Member } from "@/lib/productivity-types";
 import { cx, plural } from "@/lib/utils";
+import { useProductivity } from "./context";
 import { IconChevronRight } from "./shared";
 
-const DEPTS = [...new Set(ACTIVE_MEMBERS.map((m) => m.dept))].sort();
-const DEPT_OPTIONS = [{ value: "all", label: "All departments" }, ...DEPTS.map((d) => ({ value: d, label: d }))];
-
-/* Color follows the member, never their rank — fixed by roster order (7 members, 7 series colors). */
-const MEMBER_COLOR = Object.fromEntries(ACTIVE_MEMBERS.map((m, i) => [m.id, SERIES[Math.min(i, SERIES.length - 1)]]));
-
-const membersIn = (dept: string) => (dept === "all" ? ACTIVE_MEMBERS : ACTIVE_MEMBERS.filter((m) => m.dept === dept));
+/** Roster-derived lookups: department filter options, member colors, members per department. */
+function useRoster() {
+  const { members } = useProductivity();
+  return useMemo(() => {
+    const depts = [...new Set(members.map((m) => m.dept))].sort();
+    return {
+      members,
+      DEPT_OPTIONS: [{ value: "all", label: "All departments" }, ...depts.map((d) => ({ value: d, label: d }))],
+      /* Color follows the member, never their rank — fixed by roster order (7 members, 7 series colors). */
+      MEMBER_COLOR: Object.fromEntries(members.map((m, i) => [m.id, SERIES[Math.min(i, SERIES.length - 1)]])) as Record<string, string>,
+      membersIn: (dept: string) => (dept === "all" ? members : members.filter((m) => m.dept === dept)),
+    };
+  }, [members]);
+}
 const shortName = (n: string) =>
   n
     .split(" ")
@@ -25,10 +31,13 @@ const shortName = (n: string) =>
 
 type CapTab = "overview" | "heatmap" | "availability";
 
-/** Team Capacity Dashboard — navigable Mon–Fri weeks relative to the dataset's "today" (Week 39 = offset 0). */
+/** Team Capacity Dashboard — navigable Mon–Fri weeks relative to the dataset's "today" (offset 0 = the current week).
+    Every week reads the real records: tasks by Tasks Planning Due Date, meetings by date, and hours from
+    that week's Weekly Schedules "Scheduled Hours" (falling back to the member's Weekly Scheduled Hours). */
 export function CapacityPanel() {
   const [tab, setTab] = useState<CapTab>("overview");
   const [week, setWeek] = useState(0);
+  const { capWeekRangeLabel } = useProductivity();
   const range = capWeekRangeLabel(week);
   return (
     <section className="card p-6">
@@ -95,13 +104,18 @@ export function CapacityPanel() {
 
 function Overview({ week }: { week: number }) {
   const [dept, setDept] = useState("all");
+  const { tasksByMemberInWeek, capWeekRangeLabel, capWeekDayKeys, schedules } = useProductivity();
+  const { members, DEPT_OPTIONS, MEMBER_COLOR, membersIn } = useRoster();
   const counts = tasksByMemberInWeek(week);
+  const monday = capWeekDayKeys(week)[0];
+  const schedHours = new Map(schedules.filter((x) => x.weekStart === monday && x.hours != null).map((x) => [x.memberId, x.hours!]));
+  const hoursOf = (m: Member) => schedHours.get(m.id) ?? m.weeklyHours;
   const dist: DonutDatum[] = membersIn(dept)
     .map((m) => ({ key: m.id, label: m.name, sub: m.dept, value: counts[m.id] ?? 0, color: MEMBER_COLOR[m.id] }))
     .filter((d) => d.value > 0)
     .sort((a, b) => b.value - a.value);
   const total = dist.reduce((s, d) => s + d.value, 0);
-  const barMembers = ACTIVE_MEMBERS.filter((m) => (counts[m.id] ?? 0) > 0 || m.weeklyHours);
+  const barMembers = members.filter((m) => (counts[m.id] ?? 0) > 0 || hoursOf(m));
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
@@ -138,14 +152,15 @@ function Overview({ week }: { week: number }) {
 
       <div className="min-w-0">
         <div className="text-[14px] font-extrabold">Tasks assigned vs. weekly hours</div>
-        <div className="mb-4 text-[12px] text-muted">Tasks due this week next to recurring weekly hours — plain counts, no ratio. Hover a pair for exact numbers.</div>
+        <div className="mb-4 text-[12px] text-muted">Tasks due that week next to its scheduled hours (Weekly Schedules, else the member&apos;s default weekly hours) — plain counts, no ratio. Hover a pair for exact numbers.</div>
         {barMembers.length ? (
           <GroupedBars
             series={["Tasks due this week", "Weekly hours"]}
             colors={[...PAIR]}
             groups={barMembers.map((m) => {
               const t = counts[m.id] ?? 0;
-              const h = m.weeklyHours ?? 0;
+              const h = hoursOf(m) ?? 0;
+              const fromSchedule = schedHours.has(m.id);
               return {
                 key: m.id,
                 label: shortName(m.name),
@@ -154,7 +169,9 @@ function Overview({ week }: { week: number }) {
                   <>
                     <div className="font-bold">{m.name}</div>
                     <div>{plural(t, "task")} assigned</div>
-                    <div>{h}h/week scheduled</div>
+                    <div>
+                      {h}h/week {fromSchedule ? "scheduled (Weekly Schedules)" : "default (Team Members)"}
+                    </div>
                   </>
                 ),
               };
@@ -196,6 +213,8 @@ function DeptTable({
   legend: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const { capWeekLabels, capWeekRangeLabel } = useProductivity();
+  const { DEPT_OPTIONS, membersIn } = useRoster();
   const labels = capWeekLabels(week);
   const members = membersIn(dept);
   const groups = [...new Set(members.map((m) => m.dept))].sort().map((d) => ({ d, ms: members.filter((m) => m.dept === d) }));
@@ -294,6 +313,7 @@ function DeptRows({ dept, count, open, onToggle, rows }: { dept: string; count: 
 
 function LoadHeatmap({ week }: { week: number }) {
   const [dept, setDept] = useState("all");
+  const { dailyLoadInWeek, capWeekSublabels, capWeekLabels } = useProductivity();
   const loads = dailyLoadInWeek(week);
   const sublabels = capWeekSublabels(week);
   const labels = capWeekLabels(week);
@@ -343,8 +363,13 @@ function LoadHeatmap({ week }: { week: number }) {
   );
 }
 
+const availTone = (h: number) => (h <= 0 ? HEAT[0] : h <= 4 ? HEAT[1] : h <= 8 ? HEAT[2] : HEAT[3]);
+
 function Availability({ week }: { week: number }) {
   const [dept, setDept] = useState("all");
+  const { availability, availabilitySet } = useProductivity();
+  const hoursOf = (m: Member) => availability[m.id] ?? [];
+  const sum = (m: Member) => Math.round(hoursOf(m).reduce<number>((a, b) => a + (b ?? 0), 0) * 10) / 10;
   return (
     <div>
       <DeptTable
@@ -354,11 +379,21 @@ function Availability({ week }: { week: number }) {
         title="Team availability"
         sub="Each cell is that person's recurring Monday–Friday hours (EST) from the Team Availability table."
         colSub={() => "Recurring"}
-        memberSub={() => "No hours set"}
-        total={() => 0}
-        cell={() => (
-          <div className="grid h-12 place-items-center rounded-xl border border-dashed border-line-2 text-[10.5px] font-semibold text-muted">No hours set</div>
-        )}
+        memberSub={(m) => (sum(m) ? `${sum(m)}h/week available` : "No hours set")}
+        total={sum}
+        cell={(m, i) => {
+          const h = hoursOf(m)[i];
+          if (h == null)
+            return (
+              <div className="grid h-12 place-items-center rounded-xl border border-dashed border-line-2 text-[10.5px] font-semibold text-muted">No hours set</div>
+            );
+          const t = availTone(h);
+          return (
+            <div className="grid h-12 place-items-center rounded-xl text-[14px] font-extrabold tabular-nums" style={{ background: t.bg, color: t.fg }}>
+              {h}h
+            </div>
+          );
+        }}
         legend={
           <>
             <span>Availability:</span>
@@ -378,7 +413,7 @@ function Availability({ week }: { week: number }) {
           </>
         }
       />
-      {!AVAILABILITY_SET && (
+      {!availabilitySet && (
         <p className="mt-4 rounded-2xl bg-warn-soft px-4 py-3 text-[12px] leading-relaxed text-warn">
           No active member has a Start Time / End Time on their Team Availability record in Airtable yet, so every cell reads &quot;No
           hours set&quot;. This mirrors the base as it stands today.

@@ -3,23 +3,13 @@
 import { useState } from "react";
 import { IconCalendar, IconExternal, IconVideo } from "@/components/icons";
 import { Modal, StatusPill } from "@/components/ui";
-import { TEAM_MEMBER_DIRECTORY } from "@/lib/productivity-data";
-import {
-  findTaskPlanningByLabel,
-  fmtFullDate,
-  fmtFullDateWithWeekday,
-  fmtFullTime,
-  fmtKey,
-  meetingById,
-  meetingsOnDay,
-  parseLocationLink,
-} from "@/lib/productivity-logic";
-import { TASKS_PLANNING } from "@/lib/productivity-tasks";
+import { fmtFullDate, fmtFullDateWithWeekday, fmtFullTime, fmtKey, parseLocationLink } from "@/lib/productivity-logic";
 import type { Meeting, ReviewKind } from "@/lib/productivity-types";
 import { cx, fmtDT } from "@/lib/utils";
-import { Empty, H, IconClock, IconTimer, SESSION_NOTE, Tag } from "./shared";
+import { useProductivity } from "./context";
+import { Empty, H, IconClock, IconTimer, Tag, useSessionNote } from "./shared";
 
-const SOURCE = "Meetings Master · synced from Airtable";
+const useSource = (table: string) => `${table} · ${useProductivity().writable ? "live from Airtable" : "Airtable snapshot"}`;
 
 function Muted({ children }: { children: string }) {
   return <span className="text-[12px] text-muted">{children}</span>;
@@ -149,6 +139,7 @@ export function MeetingDetailBody({
 /* ---------------- Meeting Details (nested; closing returns to the opener) ---------------- */
 
 export function MeetingModal({ mt, onClose, backLabel = "Close" }: { mt: Meeting; onClose: () => void; backLabel?: string }) {
+  const SOURCE = useSource("Meetings Master");
   return (
     <Modal
       open
@@ -171,6 +162,8 @@ export function MeetingModal({ mt, onClose, backLabel = "Close" }: { mt: Meeting
 
 export function DayMeetingsModal({ dateKey, onClose }: { dateKey: string; onClose: () => void }) {
   const [meetingId, setMeetingId] = useState<string | null>(null);
+  const { meetingsOnDay, meetingById } = useProductivity();
+  const SOURCE = useSource("Meetings Master");
   const list = meetingsOnDay(dateKey);
   const label = fmtKey(dateKey, { month: "long", day: "numeric", year: "numeric" });
   const mt = meetingId ? meetingById(meetingId) : undefined;
@@ -231,6 +224,8 @@ export function ReviewDetailsModal({
   onClose: () => void;
 }) {
   const label = kind === "agenda" ? "Agenda" : "Recap";
+  const SOURCE = useSource("Meetings Master");
+  const note = useSessionNote();
   return (
     <Modal
       open
@@ -251,7 +246,7 @@ export function ReviewDetailsModal({
     >
       <MeetingDetailBody mt={mt} highlight={kind} emptyLinkText="Source fields are empty or unavailable" />
       <p className="mt-5 text-[11.5px] leading-relaxed text-muted">
-        Approving moves this {label.toLowerCase()} out of &quot;Ready for review&quot; in this view. {SESSION_NOTE}
+        Approving moves this {label.toLowerCase()} out of &quot;Ready for review&quot; in this view. {note}
       </p>
     </Modal>
   );
@@ -260,7 +255,7 @@ export function ReviewDetailsModal({
 /* ---------------- Task Details (Tasks Planning + Team Members) ---------------- */
 
 function PersonCard({ id }: { id: string }) {
-  const dir = TEAM_MEMBER_DIRECTORY[id];
+  const dir = useProductivity().directory[id];
   return (
     <div className="rounded-2xl border border-line p-3.5">
       <div className="text-[13px] font-extrabold">{dir?.name ?? id}</div>
@@ -293,7 +288,9 @@ export function TaskDetailsModal({
   backLabel?: string;
 }) {
   const [meetingId, setMeetingId] = useState<string | null>(null);
-  const t = taskId ? TASKS_PLANNING.find((x) => x.id === taskId) : label ? findTaskPlanningByLabel(label) : null;
+  const { taskById, findTaskPlanningByLabel, meetingById } = useProductivity();
+  const SOURCE = useSource("Tasks Planning");
+  const t = (taskId ? taskById(taskId) : null) ?? (label ? findTaskPlanningByLabel(label) : null);
   const related = (t?.relatedMeetings ?? []).map(meetingById).filter((m): m is Meeting => !!m);
   const mt = meetingId ? meetingById(meetingId) : undefined;
 
@@ -304,7 +301,7 @@ export function TaskDetailsModal({
         onClose={onClose}
         wide
         title="Task details"
-        subtitle="Tasks Planning · synced from Airtable"
+        subtitle={SOURCE}
         footer={
           <button type="button" className="btn" onClick={onClose}>
             {backLabel}

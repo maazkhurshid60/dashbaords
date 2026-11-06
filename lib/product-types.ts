@@ -305,6 +305,8 @@ export interface ProductData {
   releases: Release[];
   warnings?: string[];
   missing?: string[];
+  /** live mode: select choices from the Airtable schema, keyed "<AT key>.<field key>" (e.g. "comms.status") */
+  options?: Record<string, string[]> | null;
 }
 
 /* ---------------- Communications ---------------- */

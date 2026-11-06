@@ -2,11 +2,16 @@
 
 import type { ReactNode, SVGProps } from "react";
 import { cx } from "@/lib/utils";
+import { useProductivity } from "./context";
 
 export type Hit = (...vals: (string | null | undefined)[]) => boolean;
 
-export const SESSION_NOTE =
-  "Changes are kept in this browser session only. Writing back to Airtable needs the server sync (API route + Airtable token).";
+/** Footnote for editable modals: live data writes to Airtable; the snapshot keeps edits in this session. */
+export function useSessionNote() {
+  return useProductivity().writable
+    ? "Changes are saved to Airtable when you confirm; if Airtable rejects a change it is reverted here."
+    : "Airtable is unavailable, so this page shows the saved snapshot and changes are kept in this browser session only.";
+}
 
 export function InfoGrid({ cells, cols = 4 }: { cells: [string, ReactNode][]; cols?: 2 | 3 | 4 }) {
   return (
