@@ -9,7 +9,15 @@ import { cx, fmtDT } from "@/lib/utils";
 import { useProductivity } from "./context";
 import { Empty, H, IconClock, IconTimer, Tag, useSessionNote } from "./shared";
 
-const useSource = (table: string) => `${table} · ${useProductivity().writable ? "live from Airtable" : "Airtable snapshot"}`;
+/** Department tag tinted with Departments › Department Color; neutral when no color is set. */
+function DeptTag({ name, color }: { name: string; color?: string }) {
+  if (!color) return <Tag>{name}</Tag>;
+  return (
+    <Tag className="text-white" style={{ background: color }}>
+      {name}
+    </Tag>
+  );
+}
 
 function Muted({ children }: { children: string }) {
   return <span className="text-[12px] text-muted">{children}</span>;
@@ -26,6 +34,7 @@ export function MeetingDetailBody({
   highlight?: ReviewKind;
   emptyLinkText?: string;
 }) {
+  const { deptColors } = useProductivity();
   const loc = parseLocationLink(mt.locationLink);
   const arCard = (kind: ReviewKind, url: string | null, assignee: string | null, approver: string | null) => {
     const label = kind === "agenda" ? "Agenda" : "Recap";
@@ -76,6 +85,13 @@ export function MeetingDetailBody({
         </div>
       </div>
 
+      {mt.overview && (
+        <>
+          <H>Meeting overview</H>
+          <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-ink-2">{mt.overview}</p>
+        </>
+      )}
+
       {mt.objectives && (
         <>
           <H>Meeting objectives</H>
@@ -88,7 +104,7 @@ export function MeetingDetailBody({
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div>
           <div className="field-label">Departments</div>
-          <div className="flex flex-wrap gap-1.5">{mt.depts.length ? mt.depts.map((d) => <Tag key={d}>{d}</Tag>) : <Muted>None linked</Muted>}</div>
+          <div className="flex flex-wrap gap-1.5">{mt.depts.length ? mt.depts.map((d) => <DeptTag key={d} name={d} color={deptColors?.[d]} />) : <Muted>None linked</Muted>}</div>
         </div>
         <div>
           <div className="field-label">Facilitator</div>
@@ -139,14 +155,12 @@ export function MeetingDetailBody({
 /* ---------------- Meeting Details (nested; closing returns to the opener) ---------------- */
 
 export function MeetingModal({ mt, onClose, backLabel = "Close" }: { mt: Meeting; onClose: () => void; backLabel?: string }) {
-  const SOURCE = useSource("Meetings Master");
   return (
     <Modal
       open
       onClose={onClose}
       wide
       title="Meeting details"
-      subtitle={SOURCE}
       footer={
         <button type="button" className="btn" onClick={onClose}>
           {backLabel}
@@ -162,8 +176,7 @@ export function MeetingModal({ mt, onClose, backLabel = "Close" }: { mt: Meeting
 
 export function DayMeetingsModal({ dateKey, onClose }: { dateKey: string; onClose: () => void }) {
   const [meetingId, setMeetingId] = useState<string | null>(null);
-  const { meetingsOnDay, meetingById } = useProductivity();
-  const SOURCE = useSource("Meetings Master");
+  const { meetingsOnDay, meetingById, deptColors } = useProductivity();
   const list = meetingsOnDay(dateKey);
   const label = fmtKey(dateKey, { month: "long", day: "numeric", year: "numeric" });
   const mt = meetingId ? meetingById(meetingId) : undefined;
@@ -173,8 +186,7 @@ export function DayMeetingsModal({ dateKey, onClose }: { dateKey: string; onClos
         open
         onClose={onClose}
         title={`Meetings on ${label}`}
-        subtitle={SOURCE}
-        footer={
+          footer={
           <button type="button" className="btn" onClick={onClose}>
             Close
           </button>
@@ -183,18 +195,22 @@ export function DayMeetingsModal({ dateKey, onClose }: { dateKey: string; onClos
         {list.length ? (
           <ul className="space-y-2.5">
             {list.map((m) => (
-              <li key={m.id} className="rounded-2xl border border-line p-4">
-                <div className="text-[13px] font-extrabold leading-snug">{m.title}</div>
-                <div className="mt-0.5 text-[11.5px] text-muted">{fmtDT(m.dt)}</div>
-                {m.depts.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {m.depts.map((d) => (
-                      <Tag key={d}>{d}</Tag>
-                    ))}
-                  </div>
-                )}
-                <button type="button" className="btn btn-sm mt-3" onClick={() => setMeetingId(m.id)}>
-                  View full details →
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => setMeetingId(m.id)}
+                  className="w-full rounded-2xl border border-line p-4 text-left transition hover:-translate-y-0.5 hover:border-brand hover:shadow-card"
+                >
+                  <div className="text-[13px] font-extrabold leading-snug">{m.title}</div>
+                  <div className="mt-0.5 text-[11.5px] text-muted">{fmtDT(m.dt)}</div>
+                  {m.overview && <p className="mt-2 whitespace-pre-line text-[12px] leading-relaxed text-ink-2">{m.overview}</p>}
+                  {m.depts.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {m.depts.map((d) => (
+                        <DeptTag key={d} name={d} color={deptColors?.[d]} />
+                      ))}
+                    </div>
+                  )}
                 </button>
               </li>
             ))}
@@ -224,7 +240,6 @@ export function ReviewDetailsModal({
   onClose: () => void;
 }) {
   const label = kind === "agenda" ? "Agenda" : "Recap";
-  const SOURCE = useSource("Meetings Master");
   const note = useSessionNote();
   return (
     <Modal
@@ -232,7 +247,6 @@ export function ReviewDetailsModal({
       onClose={onClose}
       wide
       title={`Meeting ${label.toLowerCase()} details`}
-      subtitle={SOURCE}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>
@@ -289,7 +303,6 @@ export function TaskDetailsModal({
 }) {
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const { taskById, findTaskPlanningByLabel, meetingById } = useProductivity();
-  const SOURCE = useSource("Tasks Planning");
   const t = (taskId ? taskById(taskId) : null) ?? (label ? findTaskPlanningByLabel(label) : null);
   const related = (t?.relatedMeetings ?? []).map(meetingById).filter((m): m is Meeting => !!m);
   const mt = meetingId ? meetingById(meetingId) : undefined;
@@ -301,8 +314,7 @@ export function TaskDetailsModal({
         onClose={onClose}
         wide
         title="Task details"
-        subtitle={SOURCE}
-        footer={
+          footer={
           <button type="button" className="btn" onClick={onClose}>
             {backLabel}
           </button>

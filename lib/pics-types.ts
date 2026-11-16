@@ -18,6 +18,8 @@ export interface PicsReport {
   status: string;
   preparedBy: string;
   reportRequest: string;
+  /** Master Reports › "Report Overview" (live data only). */
+  overview?: string;
   deliveryLink: string;
   approved: boolean;
 }

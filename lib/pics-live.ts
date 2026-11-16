@@ -33,8 +33,8 @@ const F = {
   checklist: ["Checklist Item Name", "Item Type", "Deliverable (Asset) Type", "Due Date", "Status", "Approved Date & Time", "OPANT Notes"],
   roadmaps: ["P.I.C.S Roadmap Phase Title", "Related P.I.C.S", "Roadmap Type", "Phase", "Roadmap Stage", "Roadmap Status", "Start Date", "Due Date"],
   reports: [
-    "Report Title", "Report Type", "Prepared By", "Related Department(s)", "Report Audience", "Date Created", "Reporting Period", "Week Number",
-    "Status", "Report Request", "Related ANT", "Delivery Link", "Related Roadmaps", "This Week's Activity", "Approved",
+    "Report Title", "Type", "Prepared By", "Related Department(s)", "Report Audience", "Date Created", "Reporting Period", "Week Number",
+    "Status", "Report Request", "Report Overview", "Related ANT", "Report Link", "Related Roadmaps", "This Week's Activity", "Approved",
   ],
   meetings: ["Meeting Title", "Meeting Status", "Meeting Date & Time", "Facilitator", "Meeting Location / Link", "Meeting Objectives", "Meeting Duration (Minutes)"],
   reviews: [
@@ -232,7 +232,7 @@ function mapReport(r: AtRecord, L: Lookups, ants: Map<string, string>, roadmaps:
   return {
     id: r.id,
     title: str(f["Report Title"]) || "(untitled report)",
-    reportType: str(f["Report Type"]) || "—",
+    reportType: str(f["Type"]) || "—",
     picsId: viaRoadmap.find((id) => picsIds.has(id)) ?? null,
     ant: links(f["Related ANT"]).map((id) => ants.get(id)).filter(Boolean).join(", "),
     depts: links(f["Related Department(s)"]).map((id) => L.depts.get(id)).filter((d): d is string => !!d),
@@ -244,7 +244,8 @@ function mapReport(r: AtRecord, L: Lookups, ants: Map<string, string>, roadmaps:
     status,
     preparedBy: links(f["Prepared By"]).map((id) => initialsOf(L.team.get(id) ?? "?")).join(", ") || "—",
     reportRequest: str(f["Report Request"]),
-    deliveryLink: str(f["Delivery Link"]),
+    overview: str(f["Report Overview"]) || undefined,
+    deliveryLink: str(f["Report Link"]),
     approved: f["Approved"] === true || status === "Approved",
   };
 }
@@ -280,7 +281,7 @@ function buildOptions(schema: TableSchema[], L: Lookups): PicsOptions {
     itemTypes: c(T.checklist, "Item Type", S.itemTypes),
     assetTypes: c(T.checklist, "Deliverable (Asset) Type", S.assetTypes),
     checklistStatus: c(T.checklist, "Status", S.checklistStatus),
-    reportTypes: c(T.reports, "Report Type", S.reportTypes),
+    reportTypes: c(T.reports, "Type", S.reportTypes),
     reportStatus: c(T.reports, "Status", S.reportStatus),
     reportPeriods: c(T.reports, "Reporting Period", S.reportPeriods),
     reportAudience: c(T.reports, "Report Audience", S.reportAudience),

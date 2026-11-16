@@ -37,6 +37,8 @@ export interface Meeting {
   title: string;
   dt: string;
   depts: string[];
+  /** Meetings Master › Meeting Overview (empty when not filled). */
+  overview?: string;
   attendees: string[];
   facilitator: string | null;
   agendaReady: boolean;
@@ -138,6 +140,8 @@ export interface MasterReport {
   contentKey?: string;
   weekNumber: number | null;
   preparedBy: string;
+  /** Master Reports › Report Overview (empty when not filled). */
+  overview?: string;
   reportingPeriod: string;
   approved: boolean;
 }
@@ -191,6 +195,8 @@ export interface ProductivityData {
   };
   tasks: PlanningTask[];
   meetings: Meeting[];
+  /** Departments › Department Color (hex) by department name; missing when the snapshot predates it. */
+  deptColors?: Record<string, string>;
   /** Whether edits are written back to Airtable (live data) or kept in this session (snapshot). */
   writable: boolean;
 }

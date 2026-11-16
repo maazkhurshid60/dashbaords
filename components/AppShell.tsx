@@ -265,7 +265,7 @@ export function SidePanel({
   title,
   feedTitle,
   children,
-  footnote = "Snapshot · Airtable sync pending",
+  footnote,
 }: {
   title: string;
   feedTitle: string;
@@ -296,7 +296,7 @@ export function SidePanel({
         <div className="eyebrow mb-3">{feedTitle}</div>
         <ul className="divide-y divide-line-2">{children}</ul>
       </div>
-      <p className="mt-6 text-center font-mono text-[11px] text-muted">{footnote}</p>
+      {footnote ? <p className="mt-6 text-center font-mono text-[11px] text-muted">{footnote}</p> : null}
     </aside>
   );
 }

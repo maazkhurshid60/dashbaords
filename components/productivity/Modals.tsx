@@ -482,13 +482,18 @@ export function ReportModal({ r, onClose, onStatus }: { r: MasterReport; onClose
       onClose={onClose}
       wide
       title={r.title}
-      subtitle="Master Reports · Report Title"
       footer={
         <button type="button" className="btn" onClick={onClose}>
           Close
         </button>
       }
     >
+      {r.overview && (
+        <div className="mb-4 rounded-2xl bg-plane px-4 py-3">
+          <div className="field-label">Report overview</div>
+          <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-ink-2">{r.overview}</p>
+        </div>
+      )}
       <InfoGrid
         cols={3}
         cells={[

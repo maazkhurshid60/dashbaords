@@ -3,14 +3,13 @@
 /* /product — VCG Product Dashboard (port of VCG_Product_Dashboard.html). */
 import { buildSample, CFG, mulberry } from "@/lib/product-data";
 import type { Persona, ProductData, SuiteData } from "@/lib/product-types";
-import { ago } from "@/components/product-suite/format";
 import { NEW_ITEMS, setSuiteClock } from "@/components/product-suite/logic";
 import { SuitePage } from "@/components/product-suite/Shell";
-import { useSuite, type AppDef, type LivePayload, type SuiteServer } from "@/components/product-suite/useSuite";
+import { type AppDef, type LivePayload, type SuiteServer } from "@/components/product-suite/useSuite";
 import { CustomersStrip, LtvView, SegmentsView } from "@/components/product-suite/views/Customers";
 import { FeaturesView } from "@/components/product-suite/views/Features";
 import { FeedbackView } from "@/components/product-suite/views/Feedback";
-import { LaunchView, RoadmapView } from "@/components/product-suite/views/Pics";
+import { RoadmapView } from "@/components/product-suite/views/Pics";
 import { WebsiteView } from "@/components/product-suite/views/Website";
 
 /** Sections live mode replaces when the endpoint returns them; sections still waiting on a NEW
@@ -50,10 +49,9 @@ export const PRODUCT_APP: AppDef = {
   build: () => buildSample(),
   merge: mergeProductLive,
   tabs: [
-    ["performance", "Performance", "Is acrylics.world working, and how is each feature doing with customers?"],
-    ["customers", "Customers", "Who uses ACRYLICS, how they feel, and what each customer is worth over time."],
-    ["roadmap", "Roadmap", "What we are building and when. Pick a product P.I.C.S to see its progress — synced with P.I.C.S Roadmaps."],
-    ["launch", "Launch", "Everything being launched — the MVP, feature tests, community programs, events. Pick one to see its checklist."],
+    ["performance", "Performance", ""],
+    ["customers", "Customers", ""],
+    ["roadmap", "Roadmap", ""],
   ],
   subs: {
     performance: [
@@ -70,35 +68,6 @@ export const PRODUCT_APP: AppDef = {
   site: true,
 };
 
-function LiveBanner() {
-  const { D } = useSuite();
-  return (
-    <>
-      <b>Connected to Airtable</b> · updated {ago(D.syncedAt)}. Some sections are empty until {D.warnings?.length} Airtable fields are added.{" "}
-      <details className="inline">
-        <summary className="inline cursor-pointer underline">Which ones?</summary>
-        <div className="mt-1.5 text-[12px]">
-          {(D.warnings || []).map((w) => (
-            <div key={w}>{w}</div>
-          ))}
-        </div>
-      </details>
-    </>
-  );
-}
-function SampleBanner() {
-  const { act } = useSuite();
-  return (
-    <>
-      <b className="text-ink">Showing example data.</b> This page isn&apos;t connected to Airtable yet, so the numbers are examples of what you&apos;ll see. Persona
-      descriptions, prices, the P.I.C.S roadmap and the launch checklist are copied from Airtable.{" "}
-      <button type="button" className="font-semibold text-brand underline" onClick={act.howto}>
-        How to connect it
-      </button>
-    </>
-  );
-}
-
 export function ProductDashboard({ server }: { server?: SuiteServer }) {
   return (
     <SuitePage
@@ -106,8 +75,7 @@ export function ProductDashboard({ server }: { server?: SuiteServer }) {
       server={server}
       shell={{
         title: "Product Dashboard",
-        bannerSample: <SampleBanner />,
-        bannerLive: <LiveBanner />,
+        minimal: true,
         views: {
           "performance/website": WebsiteView,
           "performance/features": FeaturesView,
@@ -115,14 +83,11 @@ export function ProductDashboard({ server }: { server?: SuiteServer }) {
           "customers/feedback": FeedbackView,
           "customers/ltv": LtvView,
           roadmap: RoadmapView,
-          launch: LaunchView,
         },
         introExtra: { customers: CustomersStrip },
         segBar: ({ S, has }) =>
           S.tab === "customers" && (S.sub.customers === "ltv" || (S.sub.customers === "feedback" && has("User Feedback & Insights.Related Persona"))),
-        footerMeta: server?.live
-          ? "Live from the Airtable VCG Intranet base · acrylics.world checked via /api/product/site"
-          : "Airtable VCG Intranet base · acrylics.world via /api/product/* · example snapshot anchored to Sep 28, 2026",
+        footerMeta: "",
       }}
     />
   );

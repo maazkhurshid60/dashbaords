@@ -36,7 +36,6 @@ export function ReportsView({
   const [month, setMonth] = useState("all");
   const [dept, setDept] = useState("all");
   const [status, setStatus] = useState("all");
-  const { writable } = useProductivity();
 
   const months = [...new Set(reports.map((r) => monthKey(r.date)))].sort();
   const depts = [...new Set(reports.map((r) => r.dept))].sort();
@@ -48,8 +47,6 @@ export function ReportsView({
       (dept === "all" || r.dept === dept) &&
       (status === "all" || r.status === status),
   );
-  const withContent = reports.filter((r) => r.hasContent).length;
-  const inReview = reports.filter((r) => r.status !== "Approved").length;
 
   return (
     <div className="space-y-6">
@@ -58,13 +55,7 @@ export function ReportsView({
       <section className="card p-6">
         <CardHead
           icon={<IconDoc width={20} height={20} />}
-          eyebrow="Master Reports table"
           title="All team productivity reports"
-          right={
-            <span className="chip">
-              {reports.length} records · {withContent} with generated content · {inReview} in review
-            </span>
-          }
         />
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Select label="Month" value={month} onChange={setMonth} options={[{ value: "all", label: "All months" }, ...months.map((m) => ({ value: m, label: monthLabel(m) }))]} />
@@ -75,11 +66,6 @@ export function ReportsView({
 
         <ReportGroups key={visit} list={list} onOpen={onOpen} onStatus={onStatus} />
 
-        <p className="mt-5 text-[11.5px] leading-relaxed text-muted">
-          Every row opens its full field breakdown. Only the {withContent} rows marked &quot;full report&quot; have ANT-generated text in
-          Airtable; the rest are real placeholder records. Status changes — including moving a report back out of Approved —{" "}
-          {writable ? "are saved to the Master Reports record (Status, Approved)." : "stay in this session (Airtable is unavailable, showing the snapshot)."}
-        </p>
       </section>
     </div>
   );
@@ -150,6 +136,7 @@ function ReportGroups({
                                   {r.title}
                                   {r.hasContent && <span className="ml-2 text-[10.5px] font-bold text-brand">full report</span>}
                                 </div>
+                                {r.overview && <div className="mt-1 line-clamp-2 text-[12px] leading-snug text-ink-2">{r.overview}</div>}
                                 <div className="mt-0.5 text-[11px] text-muted">
                                   {r.type} · {fmt(r.date)} · Prepared by {r.preparedBy}
                                 </div>
@@ -198,7 +185,6 @@ function ComprehensiveReport() {
     <section className="card p-6">
       <CardHead
         icon={<IconDoc width={20} height={20} />}
-        eyebrow="Reporting · Master Reports table"
         title="Comprehensive productivity report"
         sub={`${parts || "No generated report text yet"}${currentReady ? "" : ` — ${week.label}'s own report isn't generated yet.`}`}
         right={

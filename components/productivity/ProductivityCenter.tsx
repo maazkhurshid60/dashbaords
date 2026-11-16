@@ -244,10 +244,6 @@ function Center({ data, source }: { data: ProductivityData; source: Source }) {
                 tone="good"
               />
             </div>
-            <p className="mt-3 text-[11.5px] text-muted">
-              Tasks Planning · due this month ({week.monthLong}) · {tasksThisMonth.total} tasks — filtered to this month so the board
-              doesn&apos;t show every open task at once.
-            </p>
           </div>
 
           <div className="seg" role="group" aria-label="View">
@@ -294,13 +290,7 @@ function Center({ data, source }: { data: ProductivityData; source: Source }) {
             />
           </div>
 
-          <PageFooter
-            meta={
-              source.live
-                ? `Live from the Airtable Intranet base · Active roster only · ${week.label} (${week.range}) · edits save to Airtable`
-                : `Snapshot of the Airtable Intranet base (Airtable unavailable) · Active roster only · ${week.label} (${week.range}) · edits stay local`
-            }
-          />
+          <PageFooter meta={`Active roster only · ${week.label} (${week.range})`} />
         </div>
       </main>
 

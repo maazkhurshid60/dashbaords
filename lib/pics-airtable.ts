@@ -26,8 +26,8 @@ export const ALLOW = {
   roadmapUpdate: ["P.I.C.S Roadmap Phase Title", "Roadmap Type", "Phase", "Roadmap Stage", "Roadmap Status", "Due Date"],
   /** Master Reports (tblRxHSe5HyDPLTZR). */
   reportCreate: [
-    "Report Title", "Report Type", "Status", "Reporting Period", "Week Number", "Related Department(s)", "Report Audience", "Prepared By",
-    "Related ANT", "Report Request", "Delivery Link", "Date Created", "Approved", "Created Via",
+    "Report Title", "Type", "Status", "Reporting Period", "Week Number", "Related Department(s)", "Report Audience", "Prepared By",
+    "Related ANT", "Report Request", "Report Link", "Date Created", "Approved", "Created Via",
   ],
 } as const;
 

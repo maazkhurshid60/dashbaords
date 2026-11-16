@@ -182,14 +182,16 @@ async function loadLive(): Promise<ProductivityData> {
         "Recap Approver",
         "Recap Approved",
         "Action Items",
+        "Meeting Overview",
       ],
     }),
     listRecords(PT.reports, {
       fields: [
         "Report Title",
-        "Report Type",
+        "Type",
         "Report Text",
         "Prepared By",
+        "Report Overview",
         "Related Department(s)",
         "Date Created",
         "Reporting Period",
@@ -200,7 +202,7 @@ async function loadLive(): Promise<ProductivityData> {
         "ANT Observations & Suggestions",
       ],
     }),
-    listRecords(PT.departments, { fields: ["Department Name"] }),
+    listRecords(PT.departments, { fields: ["Department Name", "Department Color"] }),
     listRecords(PT.meetingTypes, { fields: ["Meeting Type"] }),
     listRecords(PT.availability, { fields: ["Team Member", "Day of Week", "Start Time", "End Time"] }),
     listRecords(PT.goals, { fields: ["Goal"] }),
@@ -386,6 +388,7 @@ async function loadLive(): Promise<ProductivityData> {
       title: s(r, "Meeting Title") || "(untitled meeting)",
       dt: s(r, "Meeting Date & Time"),
       depts: names(links(f(r, "Departments")), deptName),
+      overview: s(r, "Meeting Overview").trim(),
       attendees: [...new Set([...people(r, "Attendees (Internal)"), ...people(r, "Internal Attendees")])],
       facilitator: people(r, "Facilitator")[0] ?? null,
       agendaReady: f(r, "Sync Agenda") === true,
@@ -417,7 +420,7 @@ async function loadLive(): Promise<ProductivityData> {
     .map((r) => {
       const title = s(r, "Report Title");
       const date = s(r, "Date Created") || r.createdTime.slice(0, 10);
-      const type = s(r, "Report Type") || (/\bpulse\b/i.test(title) ? "WEEKLY PULSE" : "—");
+      const type = s(r, "Type") || (/\bpulse\b/i.test(title) ? "WEEKLY PULSE" : "—");
       const weekNumber = num(f(r, "Week Number"));
       const text = s(r, "Report Text");
       const pulse = aiText(f(r, "Weekly Pulse")).trim();
@@ -447,6 +450,7 @@ async function loadLive(): Promise<ProductivityData> {
         contentKey: body ? r.id : undefined,
         weekNumber,
         preparedBy: prepared.length ? prepared.join(", ") : "—",
+        overview: s(r, "Report Overview").trim(),
         reportingPeriod: cadence && cadence !== "Weekly" ? `${cadence} · ${period}` : period,
         approved: f(r, "Approved") === true,
       };
@@ -498,6 +502,9 @@ async function loadLive(): Promise<ProductivityData> {
     },
     tasks,
     meetings,
+    deptColors: Object.fromEntries(
+      deptRecs.map((r) => [s(r, "Department Name"), s(r, "Department Color").trim()] as const).filter(([n, c]) => n && /^#[0-9a-f]{3,8}$/i.test(c)),
+    ),
     writable: true,
   };
 }

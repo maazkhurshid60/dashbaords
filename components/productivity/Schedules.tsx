@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconArrowRight, IconCheck, IconChevronLeft, IconUsers } from "@/components/icons";
+import { IconCheck, IconChevronLeft, IconUsers } from "@/components/icons";
 import { Avatar, CardHead, StatusPill } from "@/components/ui";
 import type { ChecklistRecord } from "@/lib/productivity-types";
 import { isoWeekOfKey } from "@/lib/productivity-logic";
@@ -27,7 +27,10 @@ export function SchedulesView({
   const monday = capWeekDayKeys(offset)[0];
   const SCHEDULES = allSchedules.filter((s) => s.weekStart === monday);
   const checklists = allChecklists.filter((c) => c.weekStart === monday);
-  const weekLabel = `Week ${isoWeekOfKey(monday)}`;
+  const weekNo = isoWeekOfKey(monday);
+  const weekLabel = `Week ${weekNo}`;
+  const currentWeek = isoWeekOfKey(capWeekDayKeys(0)[0]);
+  const goToWeek = (n: number) => setOffset(n - currentWeek);
   const submitted = checklists.filter((c) => c.submitted).length;
   const approved = checklists.filter((c) => c.approval === "Approved").length;
   const awaiting = checklists.filter((c) => ["Not Started", "In Progress", "In Review"].includes(c.approval)).length;
@@ -51,7 +54,11 @@ export function SchedulesView({
         </button>
       </div>
       <section className="card p-6">
-        <CardHead icon={<IconCheck width={20} height={20} />} eyebrow="Task Checklists" title="Checklist activity" />
+        <CardHead
+          icon={<IconCheck width={20} height={20} />}
+          title="Checklist activity"
+          right={<WeekFilter week={weekNo} onWeek={goToWeek} label="Checklist activity week" />}
+        />
         <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
           <SmallTile label={offset === 0 ? "Checklists this week" : "Checklists that week"} value={checklists.length} />
           <SmallTile label="Submitted" value={submitted} tone="text-brand" />
@@ -63,9 +70,13 @@ export function SchedulesView({
       <section className="card p-6">
         <CardHead
           icon={<IconUsers width={20} height={20} />}
-          eyebrow="Weekly Schedules"
           title={`Team schedules — ${weekLabel} (active roster)`}
-          right={<span className="chip">{plural(SCHEDULES.length, "active member")}</span>}
+          right={
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="chip">{plural(SCHEDULES.length, "active member")}</span>
+              <WeekFilter week={weekNo} onWeek={goToWeek} label="Team schedules week" />
+            </div>
+          }
         />
         <div className="mt-5 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {schedules.length === 0 && <NoMatch>{SCHEDULES.length ? undefined : "No Weekly Schedules records for this week in Airtable."}</NoMatch>}
@@ -92,12 +103,7 @@ export function SchedulesView({
                   <span className="chip">{s.hours != null ? `${s.hours}h scheduled` : "No hours logged"}</span>
                   {s.checklistId && <span className="chip">Checklist {s.checklistId}</span>}
                 </div>
-                <div className="mt-4 flex items-center justify-between text-[12px] font-bold">
-                  <span className="text-ink-2">{plural(s.tasks.length, "task")} assigned</span>
-                  <span className="flex items-center gap-1 text-brand">
-                    View <IconArrowRight width={14} height={14} />
-                  </span>
-                </div>
+                <div className="mt-4 text-[12px] font-bold text-ink-2">{plural(s.tasks.length, "task")} assigned</div>
               </button>
             );
           })}
@@ -105,7 +111,7 @@ export function SchedulesView({
       </section>
 
       <section className="card p-6">
-        <CardHead icon={<IconCheck width={20} height={20} />} eyebrow="Task Checklists" title="Checklist quick access" />
+        <CardHead icon={<IconCheck width={20} height={20} />} title="Checklist quick access" />
         <div className="scroll-thin -mx-1 mt-5 flex snap-x gap-4 overflow-x-auto px-1 pb-2">
           {shown.length === 0 && <NoMatch>{checklists.length ? undefined : "No Task Checklists records for this week in Airtable."}</NoMatch>}
           {shown.map((c) => {
@@ -140,5 +146,30 @@ export function SchedulesView({
         </div>
       </section>
     </div>
+  );
+}
+
+/** Week-number filter: type an ISO week (1–53) to jump there; empty/invalid input keeps the shown week. */
+function WeekFilter({ week, onWeek, label }: { week: number; onWeek: (n: number) => void; label: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <label className="flex items-center gap-1.5 text-[12px] font-bold text-ink-2">
+      Week #
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={53}
+        aria-label={label}
+        value={draft ?? String(week)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          const n = Number(e.target.value);
+          if (Number.isInteger(n) && n >= 1 && n <= 53) onWeek(n);
+        }}
+        onBlur={() => setDraft(null)}
+        className="field h-8 w-[72px] py-1 text-center tabular-nums"
+      />
+    </label>
   );
 }

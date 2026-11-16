@@ -8,7 +8,7 @@ import type { Persona } from "@/lib/product-types";
 import { cx } from "@/lib/utils";
 import { fmt$, fmtD, fmtN, pct, personaColor } from "../format";
 import { accIn, featuresByPersona, ltvStats, matchQ, segOK, tierAccounts } from "../logic";
-import { AirtableLink, Card, Empty, H5, Item, Kpi, KpiRow, PDot, Pill, StagePill, Small } from "../primitives";
+import { AirtableLink, Card, Empty, H5, Item, Kpi, KpiRow, PDot, StagePill, Small } from "../primitives";
 import { HBars, heatColor, HEAT_KEY, Legend, LineChart } from "../SuiteCharts";
 import { HiddenNote } from "../Shell";
 import { useSuite } from "../useSuite";
@@ -160,7 +160,6 @@ function PersonaProfile({ p }: { p: Persona }) {
           </span>
           <div>
             <div className="text-[19px] font-extrabold">{p.full || p.name}</div>
-            <Small>Customer Personas</Small>
           </div>
         </div>
         {p.id && String(p.id).startsWith("rec") && <AirtableLink href={atUrl(AT.personas.id, p.id)} />}
@@ -220,30 +219,6 @@ export function LtvView() {
   const churnSeg = perSeg.filter((x) => x.s.n > 0).sort((a, b) => b.s.churn - a.s.churn);
   return (
     <div className="space-y-6">
-      <section className="card flex flex-wrap items-center gap-5 bg-plane/50 p-5">
-        <div className="min-w-[260px] flex-1">
-          <h3 className="text-[15px] font-extrabold">What is Customer LTV?</h3>
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
-            Lifetime value is how much a paying customer spends with us, on average, before they leave. It comes from the <b>Lifetime Value</b> field on
-            each account in Accounts (Reference). When a customer is worth more than it costs to win them, the business grows.
-          </p>
-        </div>
-        {s.arpu ? (
-          <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold text-muted">
-            <Pill tone="info" className="h-8 px-3 text-[12px]">
-              {fmt$(s.arpu)} a month
-            </Pill>
-            ×
-            <Pill tone="info" className="h-8 px-3 text-[12px]">
-              {(s.months || 0).toFixed(0)} months
-            </Pill>
-            ≈
-            <Pill tone="good" className="h-8 px-3 text-[13px]">
-              {fmt$(s.ltv)}
-            </Pill>
-          </div>
-        ) : null}
-      </section>
       <KpiRow>
         <Kpi num={fmt$(s.ltv)} lbl="Customer LTV" explain="average Lifetime Value" />
         <Kpi num={s.arpu ? fmt$(s.arpu) : "—"} lbl="Paid per month" explain="latest month revenue ÷ paying accounts" />
@@ -255,14 +230,14 @@ export function LtvView() {
         />
       </KpiRow>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Customer LTV by segment" sub="Accounts (Reference) · Pricing Tier + Lifetime Value">
+        <Card title="Customer LTV by segment">
           {bySeg.length ? (
             <HBars rows={bySeg.map((x) => ({ n: x.p.name, v: Math.round(x.s.ltv), c: personaColor(x.p.name) }))} fmt={fmt$} />
           ) : (
             <Empty>No lifetime values yet</Empty>
           )}
         </Card>
-        <Card title="Customer churn" sub="share of each segment that has left · Account Status = Churned">
+        <Card title="Customer churn" sub="share of each segment that has left">
           {churnSeg.length ? (
             <HBars
               rows={churnSeg.map((x) => ({ n: x.p.name, v: Math.round(x.s.churn * 1000) / 10, c: personaColor(x.p.name) }))}
@@ -274,7 +249,7 @@ export function LtvView() {
           )}
         </Card>
       </div>
-      <Card title="Revenue vs plan" sub="Revenue & Forecasts, per month">
+      <Card title="Revenue vs plan" sub="per month">
         <LineChart
           labels={D.revenue.map((r) => new Date(r.month + "-01T00:00:00").toLocaleDateString("en-US", { month: "short" }))}
           series={[

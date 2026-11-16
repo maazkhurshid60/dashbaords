@@ -4,7 +4,7 @@
 import { REAL_DEPARTMENTS } from "./pics";
 import type { PicsOptions, PicsReport, ReportChatState } from "./pics-types";
 
-// Real Airtable "Report Type" single-select choices (fldlheUV888z5t8TQ)
+// Real Airtable "Type" (formerly "Report Type") single-select choices (fldlheUV888z5t8TQ)
 export const REPORT_TYPES = [
   "UPDATE",
   "STATUS",

@@ -13,6 +13,7 @@ import {
   TOOLS,
   homeSnapshot,
   type Department,
+  type Goal,
   type HomeData,
   type Kpi,
   type Resource,
@@ -38,16 +39,23 @@ const T = {
   prompts: "tbl0wslF9EKF86ivf",
   profDev: "tblhfMMEKlY1BKqLc",
   socialImpact: "tblIKKYzdHyYYE63T",
+  roadmaps: "tblTo1C185aBEIshk",
+  reports: "tblRxHSe5HyDPLTZR",
+  tasks: "tblyOuPIvgifN4OOQ",
+  metrics: "tbldU3DivAgPK5R5O",
+  masterPlans: "tbl0UFVYkjJrsQDT5",
 } as const;
 
 const recordUrl = (table: string, id: string) => `${AIRTABLE}/${table}/${id}`;
 
-/* "External" holds outside contacts, not a team, so it isn't shown as a department. */
-const HIDDEN_DEPARTMENTS = new Set(["External"]);
-/* Airtable names that the client's page calls something else. */
-const DEPT_ALIASES: Record<string, string> = { "PR & Media": "Media" };
 /* ANT Request statuses that still need work ("In the Qeue" is spelled that way in the base). */
 const OPEN_ANT = new Set(["In the Qeue", "In Progress", "Pending", "Not Started"]);
+const MONTH_Q: Record<string, string> = {
+  January: "Q1", February: "Q1", March: "Q1", April: "Q2", May: "Q2", June: "Q2",
+  July: "Q3", August: "Q3", September: "Q3", October: "Q4", November: "Q4", December: "Q4",
+};
+const UNNAMED = "Unnamed record";
+const HEX = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i;
 const PALETTE = ["#3C6CFF", "#6A4EB0", "#4EA958", "#D9A400", "#E14545", "#22232F", "#00A3A3", "#C2410C"];
 
 function hashColor(s: string) {
@@ -77,31 +85,53 @@ function ago(iso: string, now: number) {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 async function loadLive(): Promise<HomeData> {
-  const [deptRecs, annRecs, antRecs, memberRecs, picsRecs, goalRecs, toolRecs, docRecs, promptRecs, profDevRecs, impactRecs] = await Promise.all([
+  const nameMap = async (table: string, field: string) =>
+    new Map((await listRecords(table, { fields: [field] })).map((r) => [r.id, str(r.fields[field]).trim()]));
+  const [deptRecs, annRecs, antRecs, memberRecs, picsRecs, goalRecs, toolRecs, docRecs, promptRecs, profDevRecs, impactRecs, roadmapName, reportName, taskName, metricName, planName] = await Promise.all([
     listRecords(T.departments, {
-      fields: ["Department Name", "Department Overview", "Department Head(s)", "Team Members", "P.I.C.S 2", "Tool Registry & Access Log"],
+      fields: [
+        "Department Name", "Department Overview", "Department Color", "Department Head(s)", "Team Members", "P.I.C.S 2",
+        "Tool Registry & Access Log", "Dept. Org Chart", "Annual Budget", "Department Goals", "Employee Resources", "Professional Development",
+      ],
     }),
     listRecords(T.announcements, {
       fields: ["Title", "Body", "Type", "Target Page", "Department", "Status", "Publish Date", "Expires", "Pinned"],
     }),
     listRecords(T.antRequests, { fields: ["Status", "Related Department"] }),
     listRecords(T.teamMembers, { fields: ["Name"] }),
-    listRecords(T.pics, { fields: ["Active"] }),
-    listRecords(T.goals, { fields: ["Goal", "Goal Type", "Goal Progress", "Active"] }),
-    listRecords(T.tools, { fields: ["Tool Name", "Description", "Related Department", "Tool URL", "Tool Logo", "Infrastructure Layer"] }),
+    listRecords(T.pics, { fields: ["P.I.C.S Name", "Active"] }),
+    listRecords(T.goals, {
+      fields: [
+        "Goal", "Goal Type", "Active", "Goal Department", "Goal Owner", "Description", "Goal Progress", "Goal Score", "Quarter", "Month", "Year",
+        "Start Date", "End Date", "Monetary Target (Monthly)", "Monetary Target (Quarterly)", "Monetary Target (Annual)", "Related P.I.C.S",
+        "Roadmap Blocks", "Related Status Reports", "Tasks Planning", "Company OKRs", "Performance Metrics", "Master Plans", "Professional Development",
+      ],
+    }),
+    listRecords(T.tools, { fields: ["Tool Name", "Description", "Product Description", "Related Department", "Tool URL", "Tool Logo", "Infrastructure Layer"] }),
     listRecords(T.employeeResources, { fields: ["Title", "Category", "Description", "File", "Link", "Related Department(s)", "Last Updated"] }),
     listRecords(T.prompts, { fields: ["Status"] }),
-    listRecords(T.profDev, { fields: ["Status"] }),
+    listRecords(T.profDev, { fields: ["Development Initiative", "Status"] }),
     listRecords(T.socialImpact),
+    nameMap(T.roadmaps, "P.I.C.S Roadmap Phase Title"),
+    nameMap(T.reports, "Report Title"),
+    nameMap(T.tasks, "Task"),
+    nameMap(T.metrics, "Metric / Asset Name"),
+    nameMap(T.masterPlans, "Plan Name"),
   ]);
   const now = Date.now();
+  const picsName = new Map(picsRecs.map((r) => [r.id, str(r.fields["P.I.C.S Name"]).trim()]));
+  const profDevName = new Map(profDevRecs.map((r) => [r.id, str(r.fields["Development Initiative"]).trim()]));
 
-  const memberName = new Map(memberRecs.map((r) => [r.id, str(r.fields["Name"])]));
-  const deptName = new Map(deptRecs.map((r) => [r.id, str(r.fields["Department Name"])]));
-  const displayDept = (id: string) => {
-    const n = deptName.get(id) ?? "";
-    return DEPT_ALIASES[n] ?? n;
+  const memberName = new Map(memberRecs.map((r) => [r.id, str(r.fields["Name"]).trim()]));
+  const deptName = new Map(deptRecs.map((r) => [r.id, str(r.fields["Department Name"]).trim()]));
+  const displayDept = (id: string) => deptName.get(id) ?? "";
+  const deptColor = (name: string) => {
+    const rec = deptRecs.find((r) => str(r.fields["Department Name"]).trim() === name);
+    const c = str(rec?.fields["Department Color"]).trim();
+    return HEX.test(c) ? c : (DEPARTMENTS.find((d) => d.name === name)?.color ?? hashColor(name));
   };
+  const deptColors = Object.fromEntries([...deptName.values()].filter(Boolean).map((n) => [n, deptColor(n)]));
+  const names = (v: unknown, m: Map<string, string>) => links(v).map((id) => m.get(id) || UNNAMED);
   const activePics = new Set(picsRecs.filter((r) => bool(r.fields["Active"])).map((r) => r.id));
   const openAnt = antRecs.filter((r) => OPEN_ANT.has(str(r.fields["Status"])));
 
@@ -118,17 +148,19 @@ async function loadLive(): Promise<HomeData> {
     .filter((r) => str(r.fields["Tool Name"]))
     .map((r) => {
       const name = str(r.fields["Tool Name"]).trim();
+      const desc = str(r.fields["Product Description"]).trim() || str(r.fields["Description"]).trim();
+      const url = str(r.fields["Tool URL"]).trim();
       const logo = (r.fields["Tool Logo"] as { url?: string; thumbnails?: { large?: { url?: string } } }[] | undefined)?.[0];
       return {
         id: r.id,
         name,
         ...brandMark(name),
         logo: logo?.thumbnails?.large?.url ?? logo?.url,
-        url: str(r.fields["Tool URL"]) || undefined,
-        desc: str(r.fields["Description"]) || undefined,
+        url: url || undefined,
+        desc: desc || undefined,
+        missing: [!url && "Tool URL", !logo && "Tool Logo", !desc && "Product Description"].filter((x): x is string => !!x),
         layers: arr(r.fields["Infrastructure Layer"]),
         departments: [...(toolDepts.get(r.id) ?? [])]
-          .filter((d) => !HIDDEN_DEPARTMENTS.has(deptName.get(d) ?? ""))
           .map(displayDept)
           .filter(Boolean)
           .sort(),
@@ -142,7 +174,7 @@ async function loadLive(): Promise<HomeData> {
     return i < 0 ? DEPARTMENTS.length : i;
   };
   const departments: Department[] = deptRecs
-    .filter((r) => str(r.fields["Department Name"]) && !HIDDEN_DEPARTMENTS.has(str(r.fields["Department Name"])))
+    .filter((r) => str(r.fields["Department Name"]))
     .map((r) => {
       const name = displayDept(r.id);
       const known = DEPARTMENTS.find((d) => d.name === name);
@@ -150,26 +182,79 @@ async function loadLive(): Promise<HomeData> {
       return {
         id: r.id,
         name,
-        color: known?.color ?? hashColor(name),
+        color: deptColor(name),
         // The Overview field is empty in the base today, so the client's wording is the fallback.
         desc: str(r.fields["Department Overview"]) || known?.desc || "",
         tools: deptTools,
-        target: name === "Social Impact" ? { soon: "Social Impact" } : { href: recordUrl(T.departments, r.id), external: true },
+        target: { href: recordUrl(T.departments, r.id), external: true },
         heads: links(r.fields["Department Head(s)"]).map((id) => memberName.get(id) ?? "").filter(Boolean),
         members: links(r.fields["Team Members"]).length,
         activePics: links(r.fields["P.I.C.S 2"]).filter((id) => activePics.has(id)).length,
         openAnt: openAnt.filter((a) => links(a.fields["Related Department"]).includes(r.id)).length,
+        wiki: {
+          recordUrl: recordUrl(T.departments, r.id),
+          budget: num(r.fields["Annual Budget"]),
+          heads: names(r.fields["Department Head(s)"], memberName),
+          members: names(r.fields["Team Members"], memberName),
+          orgChart: (r.fields["Dept. Org Chart"] as { url?: string; thumbnails?: { large?: { url?: string } } }[] | undefined)
+            ?.map((a) => a.thumbnails?.large?.url ?? a.url)
+            .find(Boolean),
+          resources: docRecs
+            .filter((d) => links(d.fields["Related Department(s)"]).includes(r.id) || links(r.fields["Employee Resources"]).includes(d.id))
+            .map((d) => ({ title: str(d.fields["Title"]).trim() || UNNAMED, href: str(d.fields["Link"]).trim() || undefined })),
+          goals: links(r.fields["Department Goals"]).map((id) => ({ id, title: str(goalRecs.find((g) => g.id === id)?.fields["Goal"]).trim() || UNNAMED })),
+          pics: links(r.fields["P.I.C.S 2"]).filter((id) => activePics.has(id)).map((id) => picsName.get(id) || UNNAMED),
+          profDev: links(r.fields["Professional Development"]).length,
+        },
       };
     })
     .sort((a, b) => order(a.name) - order(b.name) || a.name.localeCompare(b.name));
 
-  /* ---- North Star goals (Goals, Goal Type = North Star) */
-  const northStar = goalRecs
-    .filter((r) => str(r.fields["Goal Type"]) === "North Star" && r.fields["Active"] !== false)
-    .map((r) => ({
-      title: str(r.fields["Goal"]),
-      progress: Math.max(0, Math.min(100, Math.round((num(r.fields["Goal Progress"]) ?? 0) * 100))),
-    }));
+  /* ---- goals (Goals table, linked records resolved to names) */
+  const pct = (v: unknown) => {
+    const n = num(v);
+    if (n == null) return null;
+    return Math.max(0, Math.min(100, Math.round(n <= 1 ? n * 100 : n)));
+  };
+  const goals: Goal[] = goalRecs
+    .filter((r) => str(r.fields["Goal"]).trim())
+    .map((r) => {
+      const f = r.fields;
+      const g: Goal = {
+        id: r.id,
+        title: str(f["Goal"]).trim(),
+        url: recordUrl(T.goals, r.id),
+        type: str(f["Goal Type"]),
+        active: bool(f["Active"]),
+        departments: names(f["Goal Department"], deptName),
+        owners: names(f["Goal Owner"], memberName),
+        description: str(f["Description"]).trim(),
+        progress: pct(f["Goal Progress"]),
+        score: num(f["Goal Score"]),
+        quarter: str(f["Quarter"]),
+        month: str(f["Month"]),
+        year: str(f["Year"]),
+        start: str(f["Start Date"]),
+        end: str(f["End Date"]),
+        targetMonthly: num(f["Monetary Target (Monthly)"]),
+        targetQuarterly: num(f["Monetary Target (Quarterly)"]),
+        targetAnnual: num(f["Monetary Target (Annual)"]),
+        pics: names(f["Related P.I.C.S"], picsName),
+        roadmap: names(f["Roadmap Blocks"], roadmapName),
+        reports: names(f["Related Status Reports"], reportName),
+        tasks: names(f["Tasks Planning"], taskName),
+        okrs: str(f["Company OKRs"]).trim(),
+        metrics: names(f["Performance Metrics"], metricName),
+        masterPlans: names(f["Master Plans"], planName),
+        profDev: names(f["Professional Development"], profDevName),
+        issues: [],
+      };
+      g.issues = goalIssues(g);
+      return g;
+    });
+  const northStar = goals
+    .filter((g) => g.type === "North Star" && g.active)
+    .map((g) => ({ id: g.id, title: g.title, progress: g.progress ?? 0 }));
   const avgNorthStar = northStar.length ? Math.round(northStar.reduce((s, g) => s + g.progress, 0) / northStar.length) : null;
 
   /* ---- KPIs */
@@ -226,14 +311,14 @@ async function loadLive(): Promise<HomeData> {
     .map((r) => {
       const f = r.fields;
       const file = (f["File"] as { url?: string }[] | undefined)?.[0]?.url;
-      const href = str(f["Link"]) || file;
+      const href = str(f["Link"]).trim() || file;
       return {
         id: r.id,
         title: str(f["Title"]),
         category: str(f["Category"]) || "Resource",
         desc: str(f["Description"]),
         departments: links(f["Related Department(s)"]).map(displayDept).filter(Boolean),
-        target: href ? { href, external: true } : { href: recordUrl(T.employeeResources, r.id), external: true },
+        target: href ? { href, external: true } : undefined,
         updated: str(f["Last Updated"]) || undefined,
       };
     })
@@ -255,11 +340,20 @@ async function loadLive(): Promise<HomeData> {
       default:
         return r;
     }
+  }).map((r) => {
+    // TR-2: tiles go to the ClickUp Resource Hub page stored in Employee Resources › Link.
+    if (r.name === "Professional Development") return { ...r, target: undefined, detail: "Phase 3" };
+    const key = r.name.toLowerCase();
+    const rec = docRecs.find((d) => str(d.fields["Link"]).trim() && [str(d.fields["Title"]), str(d.fields["Category"])].some((v) => v.trim().toLowerCase() === key));
+    if (rec) return { ...r, target: { href: str(rec.fields["Link"]).trim(), external: true } };
+    return r.target && "soon" in r.target ? r : { ...r, target: undefined };
   });
 
   return {
     kpis,
     northStar,
+    goals: goals.filter((g) => g.active),
+    deptColors,
     updates,
     navCards: NAV_CARDS,
     faqs: FAQS,
@@ -270,6 +364,42 @@ async function loadLive(): Promise<HomeData> {
     docs,
     subDashboards: SUB_DASHBOARDS,
   };
+}
+
+/** Obvious data problems on a goal, shown as the orange "Data to correct" note. */
+function goalIssues(g: Goal): string[] {
+  const out: string[] = [];
+  if (!g.description) out.push("Description is empty");
+  const zero = (
+    [
+      ["Monthly", g.targetMonthly],
+      ["Quarterly", g.targetQuarterly],
+      ["Annual", g.targetAnnual],
+    ] as const
+  ).filter(([, v]) => v === 0);
+  if (zero.length) out.push(`Monetary Target (${zero.map(([k]) => k).join(", ")}) is $0`);
+  if (g.score != null && g.progress != null && Math.abs(g.score - g.progress) >= 20)
+    out.push(`Goal Score (${g.score}) doesn't match Goal Progress (${g.progress}%)`);
+  if (g.quarter && g.month && MONTH_Q[g.month] && MONTH_Q[g.month] !== g.quarter) out.push(`Quarter ${g.quarter} doesn't match Month ${g.month}`);
+  if (g.quarter && g.end) {
+    const q = `Q${Math.ceil(Number(g.end.slice(5, 7)) / 3)}`;
+    if (q !== g.quarter) out.push(`Quarter ${g.quarter} doesn't match End Date ${g.end}`);
+  }
+  const unnamed = (
+    [
+      ["Department", g.departments],
+      ["Owner", g.owners],
+      ["Related P.I.C.S", g.pics],
+      ["Roadmap Blocks", g.roadmap],
+      ["Related Status Reports", g.reports],
+      ["Tasks Planning", g.tasks],
+      ["Performance Metrics", g.metrics],
+      ["Master Plans", g.masterPlans],
+      ["Professional Development", g.profDev],
+    ] as const
+  ).filter(([, v]) => v.includes(UNNAMED));
+  if (unnamed.length) out.push(`Unnamed linked records in ${unnamed.map(([k]) => k).join(", ")}`);
+  return out;
 }
 
 /** Home Command data (live, or the snapshot with the reason). One load per request; table reads cached 60s. */

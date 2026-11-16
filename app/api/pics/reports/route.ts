@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const ants = await antIds(r.ant ? r.ant.split(",").map((s) => s.trim()).filter(Boolean) : []);
     const fields: Record<string, unknown> = {
       "Report Title": title,
-      "Report Type": r.reportType ? await choice(T, "Report Type", r.reportType) : null,
+      "Type": r.reportType ? await choice(T, "Type", r.reportType) : null,
       Status: status,
       "Reporting Period": r.period ? await choice(T, "Reporting Period", r.period) : null,
       "Week Number": await choices(T, "Week Number", (r.weekNumbers ?? []).map(String)),
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       "Prepared By": prepared.ids,
       "Related ANT": ants.ids,
       "Report Request": text(r.reportRequest),
-      "Delivery Link": url(r.deliveryLink) || null,
+      "Report Link": url(r.deliveryLink) || null,
       "Date Created": isDate(r.date) ? r.date : new Date().toISOString().slice(0, 10),
       Approved: status === "Approved",
       "Created Via": await choice(T, "Created Via", "Dashboard form"),

@@ -93,31 +93,33 @@ export function ReportsView({
                   key={r.id}
                   type="button"
                   onClick={() => onOpen(r.id)}
-                  className="flex min-w-0 flex-col rounded-2xl border border-line p-4 text-left transition hover:-translate-y-0.5 hover:border-line-2 hover:shadow-card"
+                  className="group flex min-w-0 flex-col rounded-2xl bg-plane px-4 py-3.5 text-left transition hover:-translate-y-0.5 hover:shadow-card"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-[14px] font-extrabold leading-snug">{r.title}</span>
+                    <span className="min-w-0 text-[13px] font-bold leading-snug group-hover:text-brand">{r.title}</span>
                     <ReportType type={r.reportType} />
                   </div>
+                  <div className="mt-0.5 text-[11px] text-muted">
+                    {r.reportType} · {fmt(r.date)} · Prepared by {r.preparedBy}
+                  </div>
+                  {r.overview && (
+                    <div className="mt-3">
+                      <div className="eyebrow text-ink-2">Report overview</div>
+                      <p className="mt-1 line-clamp-4 whitespace-pre-line text-[12px] leading-relaxed text-ink-2">{r.overview}</p>
+                    </div>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {r.depts.map((d) => (
-                      <span key={d} className="chip">
+                      <span key={d} className="chip bg-white">
                         {d}
                       </span>
                     ))}
                     {pics && <span className="chip bg-brand-soft text-brand">{pics.name}</span>}
                     {r.ant && <span className="chip bg-teal-soft text-teal">{r.ant}</span>}
-                    <span className="chip">{plural(r.productivityTasks, "Productivity Center task")}</span>
-                    {r.deliveryLink && (
-                      <span className="chip" title={r.deliveryLink}>
-                        🔗 Report URL
-                      </span>
-                    )}
+                    <span className="chip bg-white">{plural(r.productivityTasks, "Productivity Center task")}</span>
                   </div>
                   <div className="mt-auto flex flex-wrap items-end justify-between gap-2 pt-4">
-                    <span className="text-[11px] text-muted">
-                      {periodLabel(r)} · {fmt(r.date)} · Prepared by {r.preparedBy}
-                    </span>
+                    <span className="text-[11px] text-muted">{periodLabel(r)}</span>
                     <ReportStatus status={r.status} />
                   </div>
                 </button>
@@ -128,10 +130,6 @@ export function ReportsView({
           <div className="mt-5 rounded-2xl bg-plane p-8 text-center text-[13px] text-muted">No reports match this filter.</div>
         )}
       </section>
-      <p className="px-1 text-[11.5px] leading-relaxed text-muted">
-        Reporting mirrors entries from the Master Reports table, cross-referenced with the ANT Connector and Productivity Center tables. Edits save to this
-        session only — writing back to the live Airtable base needs a connected sync.
-      </p>
     </>
   );
 }
@@ -155,6 +153,11 @@ export function ReportDetailModal({ report: r, pics, onClose }: { report: PicsRe
         <Info label="Date created">{fmt(r.date)}</Info>
       </div>
       <div className="mt-3 grid gap-3">
+        {r.overview && (
+          <Info label="Report overview">
+            <span className="whitespace-pre-line font-medium text-ink-2">{r.overview}</span>
+          </Info>
+        )}
         <Info label="Related department(s)">{r.depts.join(", ") || "—"}</Info>
         {pics && <Info label="Related P.I.C.S">{pics.name}</Info>}
         {r.ant && <Info label="Related ANT">{r.ant}</Info>}
@@ -175,7 +178,6 @@ export function ReportDetailModal({ report: r, pics, onClose }: { report: PicsRe
         </Info>
         <Info label="Approved">{r.approved ? "Yes" : "Not yet"}</Info>
       </div>
-      <Note>Read-only view mirrored from the Master Reports table — also visible in the ANT Connector and Productivity Center dashboards.</Note>
     </Modal>
   );
 }

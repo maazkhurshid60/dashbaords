@@ -107,7 +107,7 @@ export function WebsiteView() {
               />
               <div className="min-w-[220px] flex-1">
                 <div className="text-[15px] font-extrabold">{sentence}</div>
-                <Small>Site Health Checks · {S.lastSiteCheck ? "checked " + ago(S.lastSiteCheck) : "not checked"}</Small>
+                <Small>{S.lastSiteCheck ? "checked " + ago(S.lastSiteCheck) : "not checked"}</Small>
               </div>
               <div className="flex flex-wrap gap-2">
                 <a className="btn btn-sm" href={s.url} target="_blank" rel="noopener">
@@ -146,7 +146,7 @@ export function WebsiteView() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Page Traffic" sub="Page Performance">
+        <Card title="Page Traffic">
           <div className="scroll-thin overflow-x-auto">
             <table className="w-full text-[12.5px]">
               <thead>
@@ -181,7 +181,7 @@ export function WebsiteView() {
             </table>
           </div>
         </Card>
-        <Card title="Behind the scenes" sub="System Health & Reliability — the services the site depends on">
+        <Card title="Behind the scenes" sub="the services the site depends on">
           {D.health.length ? (
             D.health.map((h) => (
               <Stat
@@ -201,7 +201,7 @@ export function WebsiteView() {
             <Empty>No services listed</Empty>
           )}
         </Card>
-        <Card title="Platform Costs" sub="what running acrylics.world costs each month · Product Spend">
+        <Card title="Platform Costs" sub="what running acrylics.world costs each month">
           <div className="text-[26px] font-extrabold text-ink">
             {fmt$(D.spend.reduce((a, x) => a + (x.cost || 0), 0))}
             <span className="text-[12px] font-semibold text-muted"> /month</span>
@@ -218,7 +218,6 @@ export function WebsiteView() {
 
       <Card
         title="Site releases"
-        sub="Releases & Deployment Log"
         extra={
           <button type="button" className="btn btn-sm" onClick={act.manage}>
             Manage updates
@@ -246,7 +245,7 @@ export function WebsiteView() {
 
       <Card
         title="Updates"
-        sub={`What PRANT's sweeps of acrylics.world and the connected dashboards found · IT & Systems Registry · last sweep ${sw.lastRun ? ago(sw.lastRun) : "never"}. Click a card to read it, add notes and assign the fix.`}
+        sub={`What PRANT's sweeps of acrylics.world and the connected dashboards found · last sweep ${sw.lastRun ? ago(sw.lastRun) : "never"}`}
         extra={
           <button type="button" className="btn btn-sm btn-brand" onClick={() => void act.sweep()}>
             Run PRANT sweep now

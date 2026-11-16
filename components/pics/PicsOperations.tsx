@@ -13,7 +13,6 @@ import { IconCalendar, IconCheck, IconExternal, IconFlag, IconLayers, IconPlus }
 import { Avatar, CardHead, useToast } from "@/components/ui";
 import {
   STAGE_COLOR,
-  VISIBLE_TILE_COUNT,
   phaseCount,
   relationship,
   relationshipChip,
@@ -34,6 +33,8 @@ import { ReportBuildChat } from "./ReportBuildChat";
 import { SAVED_TOAST, StagePill, TypeBadge } from "./pics-ui";
 
 type View = "board" | "reporting";
+type Panel = "active" | "checklist" | "meetings";
+const HIDDEN_STAGE = "Execution & Implementation";
 type Dialog =
   | { kind: "newPics" }
   | { kind: "addRoadmap"; recId: string }
@@ -83,7 +84,7 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
   const typeFilters = [...options.types, "All"];
   const [type, setType] = useState<string>(() => (data.options.types.includes("Project") ? "Project" : "All"));
   const [stage, setStage] = useState<string | null>(null);
-  const [tilesExpanded, setTilesExpanded] = useState(false);
+  const [panel, setPanel] = useState<Panel | null>(null);
   const [query, setQuery] = useState("");
   const [reportFilter, setReportFilter] = useState("All");
   // Deep link: /pics?open=<picsId> opens that record's detail modal on load (openFromDeepLink).
@@ -358,12 +359,13 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
   }));
 
   // Stage tiles follow the Airtable Stage choices; any stage on a record that isn't a choice is appended.
-  const stageKeys = [...options.stages, ...new Set(records.map((r) => r.stage).filter((s) => !options.stages.includes(s)))];
+  // OPS-4: "Execution & Implementation" duplicates the Execution and Implementation tiles, so it is hidden.
+  const stageKeys = [...options.stages, ...new Set(records.map((r) => r.stage).filter((s) => !options.stages.includes(s)))].filter(
+    (s) => s !== HIDDEN_STAGE,
+  );
   const tiles = [{ key: null as string | null, label: "Active P.I.C.S", count: records.length }].concat(
     stageKeys.map((s) => ({ key: s, label: s, count: records.filter((r) => r.stage === s).length })),
   );
-  const hiddenTiles = tiles.length - VISIBLE_TILE_COUNT;
-  const shownTiles = tilesExpanded ? tiles : tiles.slice(0, VISIBLE_TILE_COUNT);
 
   const today = todayISO();
   const upcomingAll = records
@@ -371,6 +373,10 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
     .filter((m) => m.date.slice(0, 10) >= today)
     .sort((a, b) => a.date.localeCompare(b.date));
   const checklistOpen = records.reduce((s, r) => s + r.checklist.filter((c) => !c.done).length, 0);
+  const openItems = records
+    .flatMap((rec) => rec.checklist.flatMap((c, idx) => (c.done ? [] : [{ c, idx, rec }])))
+    .sort((a, b) => Number(b.c.status === "overdue") - Number(a.c.status === "overdue") || (a.c.due ?? "9").localeCompare(b.c.due ?? "9"));
+  const togglePanel = (p: Panel) => setPanel((cur) => (cur === p ? null : p));
   const overdue = records.reduce((s, r) => s + r.checklist.filter((c) => c.status === "overdue").length, 0);
   const recentReports = [...reports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
@@ -428,74 +434,163 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
 
           {view === "board" ? (
             <>
-              {/* Overview row */}
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-                <section className="card p-6">
-                  <CardHead
-                    icon={<IconLayers width={20} height={20} />}
-                    title="P.I.C.S Mix"
-                    sub="Active records by type — Projects, Initiatives, Campaigns, Sprints, BAU and Milestones."
-                  />
-                  <div className="mt-6">
-                    <Donut data={typeMix} size={190} centerLabel="active P.I.C.S" />
+              {/* Overview row (OPS-1): P.I.C.S Mix + the three activity cards on one row */}
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+                <section className="card p-5">
+                  <CardHead icon={<IconLayers width={20} height={20} />} title="P.I.C.S Mix" />
+                  <div className="mt-4">
+                    <Donut data={typeMix} size={150} centerLabel="active P.I.C.S" />
                   </div>
-                  <div className="mt-6">
+                  <div className="mt-4">
                     <DonutLegend data={typeMix} unit="records" />
                   </div>
                 </section>
-
-                <div className="flex min-w-0 flex-col gap-6">
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <SummaryTile label="Active P.I.C.S" value={records.length} chip={`${list.length} in view`} tone="brand" />
-                    <SummaryTile label="Open checklist items" value={checklistOpen} chip={`${overdue} overdue`} tone="bad" />
-                    <SummaryTile label="Upcoming meetings" value={upcomingAll.length} chip="from today" tone="good" />
-                  </div>
-
-                  {/* Stage tiles (renderStatTiles / toggleStage / toggleTiles) */}
-                  <section className="card flex-1 p-6">
-                    <CardHead
-                      title="Stages"
-                      sub="Click a stage to filter the records below; “Active P.I.C.S” clears it. Colors match the Stage field in Airtable."
-                    />
-                    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
-                      {shownTiles.map((t) => {
-                        const c = t.key ? (STAGE_COLOR[t.key] ?? "#7B7F8C") : "#15171c";
-                        const selected = stage === t.key;
-                        return (
-                          <button
-                            key={t.label}
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() => setStage(t.key === null ? null : stage === t.key ? null : t.key)}
-                            className={cx(
-                              "flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition",
-                              selected ? "border-brand bg-brand-soft" : "border-line hover:border-line-2 hover:bg-plane",
-                            )}
-                          >
-                            <span
-                              className="grid size-9 shrink-0 place-items-center rounded-xl text-[14px] font-extrabold text-white"
-                              style={{ background: c }}
-                            >
-                              {t.count}
-                            </span>
-                            <span className="text-[12px] font-semibold leading-tight text-ink">{t.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {hiddenTiles > 0 && (
-                      <button
-                        type="button"
-                        aria-expanded={tilesExpanded}
-                        onClick={() => setTilesExpanded((v) => !v)}
-                        className="mt-4 text-[12px] font-bold text-brand hover:underline"
-                      >
-                        {tilesExpanded ? "Show fewer stages" : `Show all stages (+${hiddenTiles})`}
-                      </button>
-                    )}
-                  </section>
-                </div>
+                <SummaryTile
+                  label="Active P.I.C.S"
+                  value={records.length}
+                  chip={`${list.length} in view`}
+                  tone="brand"
+                  open={panel === "active"}
+                  onClick={() => togglePanel("active")}
+                />
+                <SummaryTile
+                  label="Open checklist items"
+                  value={checklistOpen}
+                  chip={`${overdue} overdue`}
+                  tone="bad"
+                  open={panel === "checklist"}
+                  onClick={() => togglePanel("checklist")}
+                />
+                <SummaryTile
+                  label="Upcoming meetings"
+                  value={upcomingAll.length}
+                  chip="from today"
+                  tone="good"
+                  open={panel === "meetings"}
+                  onClick={() => togglePanel("meetings")}
+                />
               </div>
+
+              {/* OPS-2: the clicked activity card's list opens directly underneath */}
+              {panel && (
+                <section className="card p-5 sm:p-6">
+                  <CardHead
+                    title={panel === "active" ? "Active P.I.C.S" : panel === "checklist" ? "Open checklist items" : "Upcoming meetings"}
+                    right={
+                      <button type="button" className="btn btn-sm" onClick={() => setPanel(null)}>
+                        Close
+                      </button>
+                    }
+                  />
+                  <ul className="mt-4 max-h-[420px] space-y-1.5 overflow-y-auto">
+                    {panel === "active" &&
+                      records.map((r) => (
+                        <li key={r.id}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenId(r.id)}
+                            className="flex w-full flex-wrap items-center gap-3 rounded-2xl bg-plane px-4 py-3 text-left hover:bg-brand-soft"
+                          >
+                            <TypeBadge type={r.type} />
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{r.name}</span>
+                            <span className="text-[11px] text-muted">
+                              {fmt(r.start)} → {fmt(r.end)}
+                            </span>
+                            <StagePill stage={r.stage} />
+                          </button>
+                        </li>
+                      ))}
+                    {panel === "checklist" &&
+                      (openItems.length ? (
+                        openItems.map(({ c, idx, rec }) => (
+                          <li key={`${rec.id}-${idx}`}>
+                            <button
+                              type="button"
+                              onClick={() => setDialog({ kind: "editChecklist", recId: rec.id, idx })}
+                              className={cx(
+                                "flex w-full flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-left",
+                                c.status === "overdue" ? "bg-bad-soft" : "bg-plane hover:bg-brand-soft",
+                              )}
+                            >
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[13px] font-bold">{c.item}</span>
+                                <span className="block text-[11px] text-muted">{rec.name}</span>
+                              </span>
+                              <span className="text-[11px] text-muted">{c.due ? `Due ${fmt(c.due)}` : "No due date"}</span>
+                              {c.status === "overdue" && (
+                                <span className="rounded-lg bg-bad px-2 py-0.5 text-[10.5px] font-bold text-white">Overdue</span>
+                              )}
+                            </button>
+                          </li>
+                        ))
+                      ) : (
+                        <li className="py-4 text-[12.5px] text-muted">No open checklist items.</li>
+                      ))}
+                    {panel === "meetings" &&
+                      (upcomingAll.length ? (
+                        upcomingAll.map((m, i) => {
+                          const body = (
+                            <>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[13px] font-bold">{m.label}</span>
+                                <span className="block text-[11px] text-muted">
+                                  {m.parent}
+                                  {m.facilitator ? ` · ${m.facilitator}` : ""}
+                                </span>
+                              </span>
+                              <span className="text-[11.5px] font-semibold text-ink-2">{fmtDT(m.date)}</span>
+                            </>
+                          );
+                          const cls = "flex w-full flex-wrap items-center gap-3 rounded-2xl bg-plane px-4 py-3";
+                          return (
+                            <li key={i}>
+                              {m.link ? (
+                                <a href={m.link} target="_blank" rel="noopener" className={cx(cls, "hover:bg-brand-soft")}>
+                                  {body}
+                                </a>
+                              ) : (
+                                <div className={cls}>{body}</div>
+                              )}
+                            </li>
+                          );
+                        })
+                      ) : (
+                        <li className="py-4 text-[12.5px] text-muted">No upcoming meetings.</li>
+                      ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* Stage tiles (OPS-3): full width, every stage visible */}
+              <section className="card p-6">
+                <CardHead title="Stages" sub="Click a stage to filter the records below; “Active P.I.C.S” clears it." />
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+                  {tiles.map((t) => {
+                    const c = t.key ? (STAGE_COLOR[t.key] ?? "#7B7F8C") : "#15171c";
+                    const selected = stage === t.key;
+                    return (
+                      <button
+                        key={t.label}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setStage(t.key === null ? null : stage === t.key ? null : t.key)}
+                        className={cx(
+                          "flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition",
+                          selected ? "border-brand bg-brand-soft" : "border-line hover:border-line-2 hover:bg-plane",
+                        )}
+                      >
+                        <span
+                          className="grid size-9 shrink-0 place-items-center rounded-xl text-[14px] font-extrabold text-white"
+                          style={{ background: c }}
+                        >
+                          {t.count}
+                        </span>
+                        <span className="text-[12px] font-semibold leading-tight text-ink">{t.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
 
               {/* Records (renderFilterTabs / renderGrid) */}
               <section>
@@ -516,7 +611,7 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
                   <div className="seg" role="group" aria-label="Filter by type">
                     {typeFilters.map((t) => (
                       <button key={t} type="button" aria-pressed={type === t} onClick={() => setType(t)}>
-                        {t}
+                        {t} ({t === "All" ? records.length : records.filter((r) => r.type === t).length})
                       </button>
                     ))}
                   </div>
@@ -563,13 +658,7 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
             />
           )}
 
-          <PageFooter
-            meta={
-              live
-                ? "VCG Intranet — Master Design System · Live from the P.I.C.S Airtable base · stage, checklist, roadmap & report edits save to Airtable"
-                : "VCG Intranet — Master Design System · P.I.C.S base snapshot (Airtable unavailable) · edits are session-only"
-            }
-          />
+          <PageFooter meta="VCG Intranet — Master Design System" />
         </div>
       </main>
 
@@ -656,16 +745,36 @@ function initialsOf(name: string) {
     .join("");
 }
 
-function SummaryTile({ label, value, chip, tone }: { label: string; value: number; chip: string; tone: "brand" | "bad" | "good" }) {
+function SummaryTile({
+  label,
+  value,
+  chip,
+  tone,
+  open,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  chip: string;
+  tone: "brand" | "bad" | "good";
+  open: boolean;
+  onClick: () => void;
+}) {
   const tones = { brand: "bg-brand-soft text-brand", bad: "bg-bad-soft text-bad", good: "bg-good-soft text-good" };
   return (
-    <div className="card p-5">
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onClick}
+      className={cx("card flex flex-col p-5 text-left transition hover:-translate-y-0.5", open && "ring-2 ring-brand")}
+    >
       <div className="text-[13px] font-bold">{label}</div>
       <div className="mt-2 flex flex-wrap items-end gap-3">
         <span className="text-[40px] font-extrabold leading-none tracking-tight">{value}</span>
         <span className={cx("mb-1 rounded-lg px-2 py-1 text-[11px] font-bold", tones[tone])}>{chip}</span>
       </div>
-    </div>
+      <div className="mt-auto pt-4 text-[11.5px] font-semibold text-muted">{open ? "Hide list ▴" : "Show list ▾"}</div>
+    </button>
   );
 }
 

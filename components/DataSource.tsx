@@ -28,25 +28,23 @@ export function DataSourceBadge({ source }: { source: Source }) {
     return () => clearInterval(t);
   }, []);
 
+  /* UAT GL-2: no platform subtext on the page — just a status dot that refreshes on click;
+     the source and sync time are in the tooltip. "N min ago" is clock-based, hence suppressHydrationWarning. */
   return (
-    <span
-      className={`chip inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold ${
-        source.live ? "bg-good-soft text-good" : "bg-warn-soft text-warn"
-      }`}
-      title={source.live ? "Read from the VCG Intranet Airtable base" : `Showing the saved snapshot. ${source.error ?? ""}`}
+    <button
+      type="button"
+      aria-label="Refresh data"
+      suppressHydrationWarning
+      title={
+        source.live
+          ? `Up to date · synced ${ago(source.syncedAt, now)} · click to refresh`
+          : `Couldn't reach Airtable — showing saved data. ${source.error ?? ""}`
+      }
+      className={`inline-flex size-6 items-center justify-center rounded-full hover:bg-plane ${busy ? "animate-pulse" : ""}`}
+      disabled={busy}
+      onClick={() => startRefresh(() => router.refresh())}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${source.live ? "bg-good" : "bg-warn"}`} />
-      {/* "N min ago" depends on the clock, so server and browser may render different text. */}
-      <span suppressHydrationWarning>{source.live ? `Live from Airtable · ${ago(source.syncedAt, now)}` : "Snapshot data"}</span>
-      <button
-        type="button"
-        aria-label="Refresh data"
-        className="ml-0.5 opacity-70 hover:opacity-100 disabled:animate-spin"
-        disabled={busy}
-        onClick={() => startRefresh(() => router.refresh())}
-      >
-        ↻
-      </button>
-    </span>
+      <span className={`size-2 rounded-full ${source.live ? "bg-good" : "bg-warn"}`} />
+    </button>
   );
 }

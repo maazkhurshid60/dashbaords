@@ -24,6 +24,8 @@ export interface Update {
 }
 export interface Tool {
   id?: string;
+  /** Tool Library fields that are empty and need fixing in Airtable. */
+  missing?: string[];
   name: string;
   glyph: string;
   color: string;
@@ -45,6 +47,50 @@ export interface Department {
   members?: number;
   activePics?: number;
   openAnt?: number;
+  /** In-app Department Wiki content (interim until the client's UAT mockup lands). */
+  wiki?: DeptWiki;
+}
+export interface DeptWiki {
+  recordUrl: string;
+  budget?: number | null;
+  heads: string[];
+  members: string[];
+  orgChart?: string;
+  resources: { title: string; href?: string }[];
+  goals: { id: string; title: string }[];
+  pics: string[];
+  profDev: number;
+}
+/** Goals table record, linked records resolved to names. */
+export interface Goal {
+  id: string;
+  title: string;
+  url: string;
+  type: string;
+  active: boolean;
+  departments: string[];
+  owners: string[];
+  description: string;
+  progress: number | null;
+  score: number | null;
+  quarter: string;
+  month: string;
+  year: string;
+  start: string;
+  end: string;
+  targetMonthly: number | null;
+  targetQuarterly: number | null;
+  targetAnnual: number | null;
+  pics: string[];
+  roadmap: string[];
+  reports: string[];
+  tasks: string[];
+  okrs: string;
+  metrics: string[];
+  masterPlans: string[];
+  profDev: string[];
+  /** Obvious data problems to correct in Airtable. */
+  issues: string[];
 }
 export interface Resource {
   name: string;
@@ -63,7 +109,11 @@ export interface ResourceDoc {
 }
 export interface HomeData {
   kpis: Kpi[];
-  northStar: { title: string; progress: number }[];
+  northStar: { id?: string; title: string; progress: number }[];
+  /** Every active goal (Goals › Active). */
+  goals: Goal[];
+  /** Department name → Department Color. */
+  deptColors: Record<string, string>;
   updates: Update[];
   navCards: typeof NAV_CARDS;
   faqs: typeof FAQS;
@@ -89,26 +139,28 @@ export const NORTH_STAR = [
 
 export const UPDATES: Update[] = [
   { dept: "Product", text: "ACRYLICS MVP hit 60% completion — on track for launch.", when: "2 hours ago" },
-  { dept: "Media", text: "TechCrunch feature published — positive sentiment.", when: "3 days ago" },
+  { dept: "PR & Media", text: "TechCrunch feature published — positive sentiment.", when: "3 days ago" },
   { dept: "Executive", text: "Q3 board deck approved and published to Briefs Hub.", when: "1 week ago" },
 ];
 
 export const NAV_CARDS: { title: string; target: Target; highlight?: boolean }[] = [
-  { title: "Briefs Hub", target: { href: page("pagukWisqqmdSogxj"), external: true } },
-  { title: "DAM", target: { href: page("pagMxv5crO45B18dk"), external: true } },
-  { title: "Performance & Risks", target: { href: AIRTABLE, external: true } },
-  { title: "Product Dashboard", target: { href: "/product" } },
-  { title: "Media Dashboard", target: { href: AIRTABLE, external: true } },
-  { title: "ANT Requests", target: { soon: "ANT Connector" } },
-  { title: "Goals Dashboard", target: { href: AIRTABLE, external: true } },
-  { title: "Team Directory", target: { href: AIRTABLE, external: true } },
-  { title: "Social Impact Dashboard", target: { soon: "Social Impact" }, highlight: true },
+  { title: "Departments", target: { href: "/departments" } },
+  { title: "Tools", target: { href: "/tools" } },
+  { title: "Team Resources", target: { href: "/resources" } },
+  { title: "Operations", target: { href: "/pics" } },
+  { title: "Productivity", target: { href: "/productivity" } },
+  { title: "Product", target: { href: "/product" } },
+  { title: "Communications", target: { href: "/communications" } },
+  { title: "ANT Connector", target: { soon: "ANT Connector" } },
+  { title: "Marketing & Sales", target: { soon: "Marketing & Sales" } },
+  { title: "Social Impact", target: { soon: "Social Impact" } },
+  { title: "Briefs Hub", target: { soon: "Briefs Hub" } },
 ];
 
 export const FAQS = [
   {
     q: "Where do I find my department's SOPs and Playbooks?",
-    a: 'Click your department on the Departments tab, then use its Related Tools / "Open →" link to jump to that department\'s Airtable interface — SOPs and Playbooks are documented in ClickUp and linked from there.',
+    a: "Click your department on the Departments page to open its Department Wiki — Related Team Resources lists its SOPs and Playbooks.",
   },
   {
     q: "How do I submit an ANT Request?",
@@ -116,15 +168,15 @@ export const FAQS = [
   },
   {
     q: "Where is the Social Impact / Grant Scraper dashboard?",
-    a: "Click Social Impact in the sidebar (or the Social Impact Dashboard card above) to open the Nail Networks, Grant Scrapers, Opportunity Pipeline, and Application Builder views.",
+    a: "Click Social Impact in the sidebar (or the Social Impact block above, once it ships) to open the Nail Networks, Grant Scrapers, Opportunity Pipeline, and Application Builder views.",
   },
   {
     q: "How do I get to a specific Airtable dashboard?",
-    a: "Use the Intranet Navigation cards above — each opens the matching Airtable interface page directly. The Airtable Intranet link at the bottom of the sidebar opens the full base.",
+    a: "Use the Intranet Navigation blocks above, or the sidebar. The Open Airtable button in the right-hand panel opens the full base.",
   },
   {
     q: "What tools does my department use?",
-    a: "Open the Departments tab — each department card lists its Related Tools, and the Tools tab shows the full company-wide tool stack.",
+    a: "Open Departments — each department card lists its Related Tools, and Tools shows the full company-wide tool stack.",
   },
 ];
 
@@ -184,8 +236,8 @@ export const DEPARTMENTS: Department[] = [
     target: { href: AIRTABLE, external: true },
   },
   {
-    name: "Media",
-    color: "#3C6CFF",
+    name: "PR & Media",
+    color: "#2f6fe0",
     desc: "Handles PR, press, and external communications — pitching outlets and tracking coverage and sentiment.",
     tools: ["Loom", "Scribe", "Gamma"],
     target: { href: AIRTABLE, external: true },
@@ -202,7 +254,7 @@ export const DEPARTMENTS: Department[] = [
 export const RESOURCES: Resource[] = [
   { name: "Prompt Library", target: { soon: "ANT Connector" } },
   { name: "Tool Library", target: { href: AIRTABLE, external: true } },
-  { name: "Professional Development" },
+  { name: "Professional Development", detail: "Phase 3" },
   { name: "Policies & Procedures" },
   { name: "SOPs" },
   { name: "Productivity Assistant", target: { soon: "ANT Connector" } },
@@ -221,6 +273,8 @@ export function homeSnapshot(): HomeData {
   return {
     kpis: KPIS,
     northStar: NORTH_STAR,
+    goals: [],
+    deptColors: Object.fromEntries(DEPARTMENTS.map((d) => [d.name, d.color])),
     updates: UPDATES,
     navCards: NAV_CARDS,
     faqs: FAQS,

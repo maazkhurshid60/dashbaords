@@ -42,7 +42,7 @@ export function MeetingsPipelineView({
   const [expanded, setExpanded] = useState<Record<ReviewKind, Set<string>>>(() => ({ agenda: new Set(), recap: new Set() }));
   const agendasRef = useRef<HTMLDivElement>(null);
   const recapsRef = useRef<HTMLDivElement>(null);
-  const { meetings: allMeetings, pipelineMonth, meetingsInMonth, writable } = useProductivity();
+  const { meetings: allMeetings, pipelineMonth, meetingsInMonth } = useProductivity();
   const { deptBucket, deptColor } = useMemo(() => deptPalette(allMeetings), [allMeetings]);
 
   const { year, month } = pipelineMonth(offset);
@@ -141,7 +141,6 @@ export function MeetingsPipelineView({
     <section className="card p-6">
       <CardHead
         icon={<IconCalendar width={20} height={20} />}
-        eyebrow={`Meetings Master · ${writable ? "live from Airtable" : "Airtable snapshot"}`}
         title="Meetings Pipeline"
         right={
           <div className="flex flex-wrap items-center gap-2">
@@ -157,11 +156,6 @@ export function MeetingsPipelineView({
           </div>
         }
       />
-      <p className="mt-4 rounded-2xl bg-brand-soft px-4 py-3 text-[12px] font-medium leading-relaxed text-brand">
-        The success pipeline for meeting agendas and recaps in {label}. Agendas and recaps ready for review are listed below — open one to
-        see its full details and approve it.{" "}
-        {writable ? "Approving ticks Agenda Approved / Recap Approved on the Meetings Master record." : "Approvals update this view for the session only, not Airtable."}
-      </p>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SmallTile label="Total meetings this month" value={meetings.length} />
@@ -238,10 +232,6 @@ export function MeetingsPipelineView({
         {reviewSection("recap", recaps)}
       </div>
 
-      <p className="mt-6 text-[11.5px] text-muted">
-        Pulled from Meetings Master (Airtable) — {allMeetings.length} records {writable ? "live" : "in the snapshot"}. Click a meeting card or a calendar day for full
-        details.
-      </p>
     </section>
   );
 }

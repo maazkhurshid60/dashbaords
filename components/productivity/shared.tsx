@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, SVGProps } from "react";
+import type { CSSProperties, ReactNode, SVGProps } from "react";
 import { cx } from "@/lib/utils";
 import { useProductivity } from "./context";
 
@@ -45,9 +45,9 @@ export function NoMatch({ children = "Nothing matches your search." }: { childre
 }
 
 /** Small neutral tag used for people / departments in meeting and task details. */
-export function Tag({ children, className }: { children: ReactNode; className?: string }) {
+export function Tag({ children, className, style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
   return (
-    <span className={cx("inline-flex min-h-6 items-center rounded-full bg-plane px-2.5 py-0.5 text-[11.5px] font-semibold text-ink-2", className)}>
+    <span style={style} className={cx("inline-flex min-h-6 items-center rounded-full bg-plane px-2.5 py-0.5 text-[11.5px] font-semibold text-ink-2", className)}>
       {children}
     </span>
   );

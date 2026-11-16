@@ -63,13 +63,27 @@ export function HiddenNote({ list }: { list: [string | string[], string][] }) {
 }
 
 /* ---------- header controls ---------- */
-function StatusBar() {
+function StatusBar({ minimal }: { minimal?: boolean }) {
   const { D, act, cfg, liveError } = useSuite();
   const live = D.mode === "live";
   const offline = !live && cfg.live && !!liveError;
   const st = D.site.status;
   const siteDot = st === "up" ? "bg-good" : st === "down" ? "bg-bad" : st === "degraded" ? "bg-warn" : "bg-muted";
   const siteLbl = st === "up" ? "up" : st === "down" ? "down" : st === "degraded" ? "slow" : "not checked";
+  if (minimal)
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={cx("size-2 rounded-full", live ? "bg-good" : "bg-warn")}
+          title={live ? `Airtable · updated ${ago(D.syncedAt)}` : offline ? `Airtable: ${liveError}` : "Not connected to Airtable"}
+          aria-label={live ? "Live" : "Not live"}
+        />
+        <a className="btn btn-sm ml-auto" href={cfg.siteUrl} target="_blank" rel="noopener" title={`acrylics.world status: ${siteLbl}`}>
+          <span className={cx("size-2 rounded-full", siteDot)} aria-label={`site ${siteLbl}`} />
+          acrylics.world <IconExternal width={13} height={13} />
+        </a>
+      </div>
+    );
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button
@@ -135,7 +149,7 @@ export function SegBar() {
 
 export interface ShellProps {
   title: string;
-  bannerSample: ReactNode;
+  bannerSample?: ReactNode;
   bannerLive?: ReactNode;
   views: Record<string, ComponentType>;
   /** extra block under the intro for a tab (customersStrip) */
@@ -144,6 +158,8 @@ export interface ShellProps {
   tabBadge?: (tab: string) => ReactNode;
   extraModals?: ReactNode;
   footerMeta: string;
+  /** UAT (Product): no Live/example-data badge text, no banners, no tab intro lines, no footer source line. */
+  minimal?: boolean;
 }
 
 function ShellInner(p: ShellProps) {
@@ -159,7 +175,7 @@ function ShellInner(p: ShellProps) {
       <main className="min-w-0 flex-1">
         <TopBar title={p.title} search="Search this page…" query={query} onQuery={setQuery} />
         <div className="space-y-6 px-5 pb-10 pt-4 sm:px-8">
-          <StatusBar />
+          <StatusBar minimal={p.minimal} />
           <Seg
             label={`${app.name} views`}
             value={T[0]}
@@ -174,18 +190,20 @@ function ShellInner(p: ShellProps) {
               ),
             }))}
           />
-          <div className="space-y-3">
-            <Banner sample={p.bannerSample} live={p.bannerLive} />
-            <PreviewRibbon />
-          </div>
-          <p className="max-w-3xl text-[13.5px] leading-relaxed text-ink-2">{T[2]}</p>
+          {!p.minimal && (
+            <div className="space-y-3">
+              <Banner sample={p.bannerSample} live={p.bannerLive} />
+              <PreviewRibbon />
+            </div>
+          )}
+          {!p.minimal && T[2] && <p className="max-w-3xl text-[13.5px] leading-relaxed text-ink-2">{T[2]}</p>}
           {Extra && <Extra />}
           {subs && (
             <Seg label={`${T[1]} sections`} value={subKey} onChange={act.sub} options={subs.map(([k, l]) => ({ id: k, label: l }))} />
           )}
           {p.showSegBar && <SegBar />}
           {View && <View />}
-          <PageFooter meta={p.footerMeta} />
+          <PageFooter meta={p.minimal ? "" : p.footerMeta} />
         </div>
       </main>
       <FeatureDrawer />

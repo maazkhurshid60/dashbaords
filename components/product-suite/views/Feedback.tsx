@@ -54,10 +54,10 @@ export function FeedbackView() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="How serious is it?" sub="Sentiment / Severity">
+        <Card title="How serious is it?">
           <HBars rows={SEV_ORDER.map((s) => ({ n: SEV_LABEL[s], v: all.filter((f) => f.sentiment === s).length, c: sevColor(s) }))} />
         </Card>
-        <Card title="Where it came from" sub="Source / Channel">
+        <Card title="Where it came from">
           <HBars rows={["In-App", "Survey", "Support Ticket", "User Interview", "Sales Call"].map((s) => ({ n: s, v: all.filter((f) => f.source === s).length }))} />
         </Card>
         <Card
@@ -74,7 +74,7 @@ export function FeedbackView() {
       </div>
       <Card
         title="Customer Sentiment"
-        sub="feedback per week by how serious it is · User Feedback & Insights"
+        sub="feedback per week by how serious it is"
         extra={
           <button type="button" className="btn btn-sm btn-brand" onClick={act.addfb}>
             + Add feedback
