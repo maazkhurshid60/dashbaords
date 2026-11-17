@@ -3,6 +3,7 @@ import type React from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { ToastProvider } from "@/components/ui";
+import { ChatWidget } from "@/components/ant/ChatWidget";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen">
         <ToastProvider>
           <AppShell>{children}</AppShell>
+          <ChatWidget />
         </ToastProvider>
       </body>
     </html>

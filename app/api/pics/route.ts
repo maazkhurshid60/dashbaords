@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         fields["Related Parent/Child/Subchild"] = [b.parentId];
       }
     }
-    const rec = await createRecord(T, fields, ALLOW.picsCreate, false);
+    const rec = await createRecord(T, fields, ALLOW.picsCreate, false, { dashboard: "PICS Operations", area: "Launch a new P.I.C.S" });
     return {
       id: rec.id,
       leads: leads.leads,

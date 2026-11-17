@@ -36,13 +36,13 @@ const NAV: { href?: string; label: string; Icon: typeof IconGrid; mobile?: strin
   { href: "/departments", label: "Departments", Icon: IconBuilding },
   { href: "/tools", label: "Tools", Icon: IconTool },
   { href: "/resources", label: "Team Resources", Icon: IconBook },
-  { label: "ANT Connector", Icon: IconTarget },
+  { href: "/ant", label: "ANT Connector", Icon: IconTarget },
+  { href: "/social-impact", label: "Social Impact", Icon: IconHeart },
   { href: "/pics", label: "Operations", Icon: IconLayers, mobile: "Ops" },
   { href: "/productivity", label: "Productivity", Icon: IconPie, mobile: "Productivity" },
   { href: "/product", label: "Product", Icon: IconCube, mobile: "Product" },
   { href: "/communications", label: "Communications", Icon: IconChat, mobile: "Comms" },
   { label: "Marketing & Sales", Icon: IconMegaphone },
-  { label: "Social Impact", Icon: IconHeart },
   { label: "Briefs Hub", Icon: IconDoc },
   { label: "DAM", Icon: IconImage },
   { label: "Automations", Icon: IconCommand },
@@ -252,7 +252,7 @@ export function PageFooter({ meta }: { meta: string }) {
           Home Command
         </Link>
         <span className="cursor-not-allowed text-muted" title="Not part of this build yet">
-          ANT Connector · Social Impact
+          Briefs Hub · DAM
         </span>
       </div>
       <div className="text-[11px] text-muted">{meta}</div>

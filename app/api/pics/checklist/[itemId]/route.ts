@@ -14,12 +14,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ itemId
     const T = PICS_TABLES.checklist;
     let rec: AtRecord;
     if (b.item) {
-      rec = await updateRecord(T, itemId, await checklistFields(b.item), ALLOW.checklistUpdate, false);
+      rec = await updateRecord(T, itemId, await checklistFields(b.item), ALLOW.checklistUpdate, false, { dashboard: "PICS Operations", area: "Checklist" });
     } else if (b.activity) {
       const name = text(b.activity.label, 500);
       if (!name) throw bad("Activity name is required");
       const fields = { "Checklist Item Name": name, Status: await choice(T, "Status", String(b.activity.status ?? "")) };
-      rec = await updateRecord(T, itemId, fields, ALLOW.checklistActivity, false);
+      rec = await updateRecord(T, itemId, fields, ALLOW.checklistActivity, false, { dashboard: "PICS Operations", area: "Review round activities" });
     } else throw bad("Send item or activity");
     return { item: mapChecklist(rec), atStatus: String(rec.fields["Status"] ?? "") };
   });

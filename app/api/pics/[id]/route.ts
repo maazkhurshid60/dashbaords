@@ -10,7 +10,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const b = await body<{ stage?: string }>(req);
     if (typeof b.stage !== "string") throw bad("stage is required");
     const stage = await choice(PICS_TABLES.pics, "Stage", b.stage);
-    const rec = await updateRecord(PICS_TABLES.pics, id, { Stage: stage }, ALLOW.picsUpdate, false);
+    const rec = await updateRecord(PICS_TABLES.pics, id, { Stage: stage }, ALLOW.picsUpdate, false, { dashboard: "PICS Operations", area: "Stage change" });
     return { id: rec.id, stage };
   });
 }

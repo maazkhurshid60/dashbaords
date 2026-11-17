@@ -28,7 +28,8 @@ import { AddChecklistModal, AddRoadmapModal, EditChecklistModal, NewPicsModal } 
 import { NewReportModal, ReportDetailModal, ReportsView } from "./PicsReports";
 import { RecordDetail, type DetailHandlers } from "./RecordDetail";
 import { PicsMasterCard } from "@/components/pics-card/PicsMasterCard";
-import type { CardData, CardPics, CardSource } from "@/lib/pics-card-types";
+import type { CardPics, CardSource } from "@/lib/pics-card-types";
+import { unpackCard, unpackOps, type PackedCard, type PackedOps } from "@/lib/pics-pack";
 import { ReportBuildChat } from "./ReportBuildChat";
 import { SAVED_TOAST, StagePill, TypeBadge } from "./pics-ui";
 
@@ -57,17 +58,20 @@ const tmpId = () => `tmp_${Date.now()}_${++tmpSeq}`;
 
 export function PicsOperations({
   initialOpenId,
-  data,
+  data: packedData,
   source,
-  card,
+  card: packedCard,
   cardSource,
 }: {
   initialOpenId?: string | null;
-  data: PicsData;
+  data: PackedOps;
   source: Source;
-  card: CardData;
+  card: PackedCard;
   cardSource: CardSource;
 }) {
+  // Rebuilt once per server payload (identity matters: a new `data` means a refresh).
+  const card = useMemo(() => unpackCard(packedCard), [packedCard]);
+  const data = useMemo(() => unpackOps(packedData, card), [packedData, card]);
   const toast = useToast();
   const live = source.live;
   const [init] = useState(() => initialData(data, live));

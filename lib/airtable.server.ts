@@ -12,7 +12,8 @@ import { revalidateTag } from "next/cache";
 export const BASE_ID = process.env.AIRTABLE_BASE_ID || "appLH1D7ME6mU1zgE";
 const API = "https://api.airtable.com/v0";
 const REVALIDATE_S = 60;
-const MAX_CONCURRENT = 4;
+// Airtable allows 5 requests/second per base; stay under it across all dashboards.
+const MAX_CONCURRENT = 3;
 
 export type Fields = Record<string, unknown>;
 export interface AtRecord<F extends Fields = Fields> {
@@ -56,9 +57,9 @@ async function call(url: string, init: RequestInit & { next?: { revalidate?: num
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...init.headers },
       }),
     );
-    // Airtable asks clients to back off ~30s on 429; a short retry is enough for our bursts.
-    if (res.status === 429 && attempt < 3) {
-      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    // Rate limited: back off exponentially (Airtable recommends waiting before retrying).
+    if (res.status === 429 && attempt < 5) {
+      await new Promise((r) => setTimeout(r, 1500 * 2 ** attempt)); // 1.5s, 3s, 6s, 12s, 24s
       continue;
     }
     if (!res.ok) {

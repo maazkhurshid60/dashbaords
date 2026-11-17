@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     if (!isRecId(b.picsId)) throw bad("picsId must be an Airtable P.I.C.S record id");
     const f = await roadmapFields(b.row ?? {});
     const fields = { ...f, "Start Date": f["Due Date"], "Related P.I.C.S": [b.picsId] };
-    const rec = await createRecord(PICS_TABLES.roadmaps, fields, ALLOW.roadmapCreate, false);
+    const rec = await createRecord(PICS_TABLES.roadmaps, fields, ALLOW.roadmapCreate, false, { dashboard: "PICS Operations", area: "Roadmap" });
     return { row: mapRoadmap(rec) };
   });
 }

@@ -59,7 +59,7 @@ export const DASHBOARDS: Record<string, { n: string; u?: string; s: DashStatus; 
   dam: { n: "DAM", s: "airtable", d: "Asset library and requests" },
   media: { n: "Media Dashboard", s: "airtable", d: "Press coverage and sentiment" },
   team: { n: "Team Directory", s: "airtable", d: "People, roles, availability" },
-  si: { n: "Social Impact Dashboard", s: "soon", d: "Grants, programs, SDG scorecard" },
+  si: { n: "Social Impact Dashboard", u: "/social-impact", s: "live", d: "Grants, programs, SDG scorecard" },
   mkt: { n: "Marketing & Sales Dashboard", s: "soon", d: "Pipeline, campaigns, funnels" },
   research: { n: "Market Research & Strategy", s: "airtable", d: "BMC, SWOT, PESTLE, competitors" },
   fin: { n: "Finance Dashboard", s: "soon", d: "P&L, ledger, AP/AR, payroll" },

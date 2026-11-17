@@ -9,7 +9,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ rowId:
     const { rowId } = await params;
     if (!isRecId(rowId)) throw bad("Not an Airtable record id");
     const b = await body<{ row?: Partial<RoadmapRow> }>(req);
-    const rec = await updateRecord(PICS_TABLES.roadmaps, rowId, await roadmapFields(b.row ?? {}), ALLOW.roadmapUpdate, false);
+    const rec = await updateRecord(PICS_TABLES.roadmaps, rowId, await roadmapFields(b.row ?? {}), ALLOW.roadmapUpdate, false, { dashboard: "PICS Operations", area: "Roadmap" });
     return { row: mapRoadmap(rec) };
   });
 }

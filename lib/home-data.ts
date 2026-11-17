@@ -154,8 +154,8 @@ export interface HomeData {
 
 export const KPIS: Kpi[] = [
   { value: "8", label: "Departments", target: { href: "/departments" } },
-  { value: "5", label: "Open ANT Requests", target: { soon: "ANT Connector" } },
-  { value: "10", label: "Greater Good Goals Tracked", target: { soon: "Social Impact" }, snapshot: true },
+  { value: "5", label: "Open ANT Requests", target: { href: "/ant#requests" } },
+  { value: "10", label: "Greater Good Goals Tracked", target: { href: "/social-impact" }, snapshot: true },
   { value: "38%", label: "Avg. North Star Progress", target: { href: "#north-star" } },
 ];
 
@@ -178,9 +178,9 @@ export const NAV_CARDS: { title: string; target: Target; highlight?: boolean; su
   { title: "Productivity", sub: "Meetings, schedules, checklists, reports", target: { href: "/productivity" } },
   { title: "Product", sub: "acrylics.world performance", target: { href: "/product" } },
   { title: "Communications", sub: "Inbox & updates", target: { href: "/communications" } },
-  { title: "ANT Connector", sub: "Soon", target: { soon: "ANT Connector" } },
+  { title: "ANT Connector", sub: "AI assistant & ANT requests", target: { href: "/ant" } },
   { title: "Marketing & Sales", sub: "Soon", target: { soon: "Marketing & Sales" } },
-  { title: "Social Impact", sub: "Soon", target: { soon: "Social Impact" } },
+  { title: "Social Impact", sub: "Grant scraper & Greater Good Goals", target: { href: "/social-impact" } },
   { title: "Briefs Hub", sub: "Soon", target: { soon: "Briefs Hub" } },
 ];
 
@@ -274,19 +274,19 @@ export const DEPARTMENTS: Department[] = [
     color: "#D5B0FF",
     desc: "Runs Nail Networks and the Greater Good Goals scorecard — grants, fiscal sponsorship, and community programming.",
     tools: ["Airtable", "Claude", "Canva"],
-    target: { soon: "Social Impact" },
+    target: { href: "/social-impact" },
   },
 ];
 
 export const RESOURCES: Resource[] = [
-  { name: "Prompt Library", target: { soon: "ANT Connector" } },
+  { name: "Prompt Library", target: { href: "/ant#prompts" } },
   { name: "Tool Library", target: { href: AIRTABLE, external: true } },
   { name: "Professional Development", detail: "Phase 3" },
   { name: "Policies & Procedures", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/2kz9rj7b-19117", external: true } },
   { name: "SOPs", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/2kz9rj7b-3737", external: true } },
   { name: "Manuals", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/2kz9rj7b-36257", external: true } },
   { name: "Resource Hub", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/", external: true } },
-  { name: "Productivity Assistant", target: { soon: "ANT Connector" } },
+  { name: "Productivity Assistant", target: { href: "/ant" } },
 ];
 export const RESOURCES_LINK = page("pagukWisqqmdSogxj");
 

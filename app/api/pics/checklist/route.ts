@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const b = await body<{ picsId?: string; item?: Partial<ChecklistItem> }>(req);
     if (!isRecId(b.picsId)) throw bad("picsId must be an Airtable P.I.C.S record id");
     const fields = { ...(await checklistFields(b.item ?? {})), "Related P.I.C.S": [b.picsId] };
-    const rec = await createRecord(PICS_TABLES.checklist, fields, ALLOW.checklistCreate, false);
+    const rec = await createRecord(PICS_TABLES.checklist, fields, ALLOW.checklistCreate, false, { dashboard: "PICS Operations", area: "Checklist" });
     return { item: mapChecklist(rec), atStatus: String(rec.fields["Status"] ?? "") };
   });
 }
