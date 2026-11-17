@@ -5,6 +5,8 @@
    clCards, paged, workRow, viewPicsBtn). */
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { usePicsCardData } from "@/components/pics-card/CardDataContext";
+import { PicsMasterCard } from "@/components/pics-card/PicsMasterCard";
 import { DAY, TODAY } from "@/lib/product-data";
 import type { Pics } from "@/lib/product-types";
 import { cx } from "@/lib/utils";
@@ -194,8 +196,16 @@ const ViewPicsBtn = ({ id }: { id: string }) => (
   </div>
 );
 
-/* ---------------- ROADMAP ---------------- */
+/* ---------------- ROADMAP ----------------
+   PRD-6/PRD-8: the P.I.C.S Master Card (same component as /pics), filtered to Related Department(s) ⊇ Product.
+   Data comes from app/product/page.tsx via PicsCardDataProvider; the legacy view is kept as a fallback. */
 export function RoadmapView() {
+  const card = usePicsCardData();
+  if (card) return <PicsMasterCard data={card.data} source={card.source} dashboard="Product" dept="Product" viewBase="/pics" initialType="All" />;
+  return <LegacyRoadmapView />;
+}
+
+function LegacyRoadmapView() {
   const { D, S, q, app, act } = useSuite();
   const tagged = D.pics.filter((p) => p.tagged !== false);
   const roots = tagged.filter((p) => !p.parentId || !tagged.some((x) => x.id === p.parentId));

@@ -9,13 +9,11 @@ import { useMemo, useState } from "react";
 import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
 import { DataSourceBadge, type Source } from "@/components/DataSource";
 import { Donut, DonutLegend, SERIES, type DonutDatum } from "@/components/charts";
-import { IconCalendar, IconCheck, IconExternal, IconFlag, IconLayers, IconPlus } from "@/components/icons";
-import { Avatar, CardHead, useToast } from "@/components/ui";
+import { IconLayers, IconPlus } from "@/components/icons";
+import { CardHead, useToast } from "@/components/ui";
 import {
   STAGE_COLOR,
-  phaseCount,
   relationship,
-  relationshipChip,
   todayISO,
 } from "@/lib/pics";
 import { picsApi, saveError } from "@/lib/pics-api";
@@ -23,12 +21,14 @@ import { EMPTY_CHAT, advanceReportChat, startNewReportChat } from "@/lib/pics-re
 import { ensureBauPicsRecord, resyncTaskPlanning, seedTaskPlanningFromExistingRoadmaps, syncRoadmapRowToTaskPlanning } from "@/lib/pics-sync";
 import type { PicsData, PicsReport, ReportChatState, TaskPlanningEntry } from "@/lib/pics-types";
 import type { ChecklistItem, PicsRecord, RoadmapRow } from "@/lib/types";
-import { cx, fmt, fmtDT, pctElapsed } from "@/lib/utils";
+import { cx, fmt, fmtDT } from "@/lib/utils";
 import { PicsCalendar } from "./PicsCalendar";
 import { PicsOptionsProvider } from "./PicsOptionsContext";
 import { AddChecklistModal, AddRoadmapModal, EditChecklistModal, NewPicsModal } from "./PicsForms";
 import { NewReportModal, ReportDetailModal, ReportsView } from "./PicsReports";
 import { RecordDetail, type DetailHandlers } from "./RecordDetail";
+import { PicsMasterCard } from "@/components/pics-card/PicsMasterCard";
+import type { CardData, CardPics, CardSource } from "@/lib/pics-card-types";
 import { ReportBuildChat } from "./ReportBuildChat";
 import { SAVED_TOAST, StagePill, TypeBadge } from "./pics-ui";
 
@@ -54,14 +54,20 @@ const isAt = (id: string | undefined): id is string => !!id && /^rec[A-Za-z0-9]{
 let tmpSeq = 0;
 const tmpId = () => `tmp_${Date.now()}_${++tmpSeq}`;
 
-/* Deep link target: Airtable record ID, else P.I.C.S Tag or exact name (case-insensitive). */
-function findDeepLink(records: PicsRecord[], key: string | null | undefined) {
-  if (!key) return null;
-  const k = key.trim().toLowerCase();
-  return (records.find((r) => r.id === key) ?? records.find((r) => r.tag?.toLowerCase() === k || r.name.toLowerCase() === k))?.id ?? null;
-}
 
-export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?: string | null; data: PicsData; source: Source }) {
+export function PicsOperations({
+  initialOpenId,
+  data,
+  source,
+  card,
+  cardSource,
+}: {
+  initialOpenId?: string | null;
+  data: PicsData;
+  source: Source;
+  card: CardData;
+  cardSource: CardSource;
+}) {
   const toast = useToast();
   const live = source.live;
   const [init] = useState(() => initialData(data, live));
@@ -81,14 +87,14 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
   const [view, setView] = useState<View>("board");
   // Choice lists: live Airtable select choices / Departments, or the snapshot lists (lib/pics-options.ts).
   const options = data.options;
-  const typeFilters = [...options.types, "All"];
   const [type, setType] = useState<string>(() => (data.options.types.includes("Project") ? "Project" : "All"));
   const [stage, setStage] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel | null>(null);
   const [query, setQuery] = useState("");
   const [reportFilter, setReportFilter] = useState("All");
-  // Deep link: /pics?open=<picsId> opens that record's detail modal on load (openFromDeepLink).
-  const [openId, setOpenId] = useState<string | null>(() => findDeepLink(init.records, initialOpenId));
+  // Deep link: /pics?open=<picsId> opens that record's master card on load (handled by PicsMasterCard).
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [cardOpen, setCardOpen] = useState<{ id: string; n: number } | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   // Collapse state for phase / month / review / checklist groups, keyed "recId::groupKey" (collapsed by default).
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -350,6 +356,16 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
   const matches = (r: PicsRecord) =>
     !q || [r.name, r.type, r.stage, ...r.depts, ...r.leads.map((l) => l.i)].some((v) => v.toLowerCase().includes(q));
   const list = records.filter((r) => (type === "All" || r.type === type) && (!stage || r.stage === stage) && matches(r));
+  // Same stage + search narrowing for the master card grid.
+  const cardFilter = useMemo(
+    () =>
+      !q && !stage
+        ? null
+        : (p: CardPics) =>
+            (!stage || p.stage === stage) &&
+            (!q || [p.name, p.type, p.stage, p.tag, ...p.depts, ...p.leads].some((v) => v.toLowerCase().includes(q))),
+    [q, stage],
+  );
 
   const typeMix: DonutDatum[] = options.types.map((t, i) => ({
     key: t,
@@ -488,7 +504,7 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
                         <li key={r.id}>
                           <button
                             type="button"
-                            onClick={() => setOpenId(r.id)}
+                            onClick={() => setCardOpen((o) => ({ id: r.id, n: (o?.n ?? 0) + 1 }))}
                             className="flex w-full flex-wrap items-center gap-3 rounded-2xl bg-plane px-4 py-3 text-left hover:bg-brand-soft"
                           >
                             <TypeBadge type={r.type} />
@@ -592,55 +608,45 @@ export function PicsOperations({ initialOpenId, data, source }: { initialOpenId?
                 </div>
               </section>
 
-              {/* Records (renderFilterTabs / renderGrid) */}
+              {/* Records: the P.I.C.S Master Card v2 (OPS-6 → OPS-24) — type tabs, cards, full card, roadmap,
+                  checklists, feedback rounds, share. Stage tiles and the search box narrow its grid. */}
               <section>
                 <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <div className="eyebrow">
-                      Active · {type}
+                      Active
                       {stage ? ` · ${stage}` : ""}
                       {q ? ` · “${query.trim()}”` : ""}
                     </div>
-                    <h2 className="mt-1 text-[22px] font-medium tracking-tight">P.I.C.S Records ({list.length})</h2>
+                    <h2 className="mt-1 text-[22px] font-medium tracking-tight">P.I.C.S Records</h2>
                   </div>
-                  <button type="button" className="btn btn-brand btn-sm" onClick={() => setDialog({ kind: "newPics" })}>
-                    <IconPlus width={14} height={14} /> New P.I.C.S
-                  </button>
-                </div>
-                <div className="mb-4 max-w-full">
-                  <div className="seg" role="group" aria-label="Filter by type">
-                    {typeFilters.map((t) => (
-                      <button key={t} type="button" aria-pressed={type === t} onClick={() => setType(t)}>
-                        {t} ({t === "All" ? records.length : records.filter((r) => r.type === t).length})
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {list.length ? (
-                  <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
-                    {list.map((r) => (
-                      <RecordCard key={r.id} r={r} rel={relationshipChip(r, byId)} onOpen={() => setOpenId(r.id)} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="card p-10 text-center text-[13px] text-muted">
-                    No active P.I.C.S records match this filter.
-                    {(q || stage || type !== "All") && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(q || stage) && (
                       <button
                         type="button"
-                        className="btn btn-sm ml-3"
+                        className="btn btn-sm"
                         onClick={() => {
                           setQuery("");
                           setStage(null);
-                          setType("All");
                         }}
                       >
-                        Show all
+                        Clear filters
                       </button>
                     )}
+                    <button type="button" className="btn btn-brand btn-sm" onClick={() => setDialog({ kind: "newPics" })}>
+                      <IconPlus width={14} height={14} /> New P.I.C.S
+                    </button>
                   </div>
-                )}
+                </div>
+                <PicsMasterCard
+                  data={card}
+                  source={cardSource}
+                  dashboard="PICS Operations"
+                  filter={cardFilter}
+                  openId={initialOpenId}
+                  openRequest={cardOpen}
+                  viewBase="/pics"
+                />
               </section>
 
               <PicsCalendar records={records} onEditChecklist={(recId, idx) => setDialog({ kind: "editChecklist", recId, idx })} />
@@ -775,73 +781,5 @@ function SummaryTile({
       </div>
       <div className="mt-auto pt-4 text-[11.5px] font-semibold text-muted">{open ? "Hide list ▴" : "Show list ▾"}</div>
     </button>
-  );
-}
-
-function RecordCard({ r, rel, onOpen }: { r: PicsRecord; rel: string | null; onOpen: () => void }) {
-  const pct = pctElapsed(r.start, r.end, new Date(todayISO()).getTime());
-  const counts = [
-    { Icon: IconFlag, n: r.roadmapRows.length, l: "Tasks" },
-    { Icon: IconCheck, n: r.checklist.length, l: "Checklist" },
-    { Icon: IconCalendar, n: r.meetingCount, l: "Meetings" },
-    { Icon: IconLayers, n: phaseCount(r), l: "Phases" },
-  ];
-  return (
-    <article className="card group flex min-w-0 flex-col p-5 transition hover:-translate-y-0.5">
-      {rel && <div className="mb-2 text-[11.5px] font-semibold text-violet">{rel}</div>}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <TypeBadge type={r.type} />
-        <StagePill stage={r.stage} />
-      </div>
-      <h3 className="mt-3 text-[16px] font-extrabold leading-snug">{r.name}</h3>
-      <div className="mt-1 text-[11.5px] font-medium text-muted">
-        {fmt(r.start)} → {fmt(r.end)}
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {r.depts.map((d) => (
-          <span key={d} className="chip">
-            {d}
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-4">
-        <div className="flex justify-between text-[11px] font-semibold text-muted">
-          <span>Timeline</span>
-          <span className="tabular-nums text-ink-2">{pct}% elapsed</span>
-        </div>
-        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-plane">
-          <div className="h-full rounded-full bg-linear-to-r from-brand to-violet" style={{ width: `${pct}%` }} />
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-4 gap-2">
-        {counts.map(({ Icon, n, l }) => (
-          <div key={l} className="flex flex-col items-center rounded-2xl bg-plane py-2.5">
-            <Icon width={16} height={16} className="text-muted" />
-            <span className="mt-1 text-[15px] font-extrabold tabular-nums">{n}</span>
-            <span className="text-[10px] font-semibold text-muted">{l}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-auto flex items-center justify-between gap-2 pt-5">
-        <div className="flex -space-x-2">
-          {r.leads.map((l, i) => (
-            <Avatar key={`${l.i}-${i}`} initials={l.i} size={32} className="rounded-full ring-2 ring-white" />
-          ))}
-        </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {r.liveSiteUrl && (
-            <a href={r.liveSiteUrl} target="_blank" rel="noopener" className="btn btn-sm">
-              Live site <IconExternal width={13} height={13} />
-            </a>
-          )}
-          <button type="button" onClick={onOpen} className="btn btn-dark btn-sm">
-            Open
-          </button>
-        </div>
-      </div>
-    </article>
   );
 }

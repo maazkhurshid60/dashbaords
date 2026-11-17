@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
-import { arr, bool, links, listRecords, num, str, withFallback } from "@/lib/airtable.server";
+import { arr, bool, getSchema, links, listRecords, num, str, withFallback } from "@/lib/airtable.server";
+import { DEPT_DASH, FIELD_DASH, FIELD_MAP, RESOURCE_TILE_PAGES } from "@/lib/home-wiki";
 import {
   AIRTABLE,
   DEPARTMENTS,
@@ -92,13 +93,15 @@ async function loadLive(): Promise<HomeData> {
       fields: [
         "Department Name", "Department Overview", "Department Color", "Department Head(s)", "Team Members", "P.I.C.S 2",
         "Tool Registry & Access Log", "Dept. Org Chart", "Annual Budget", "Department Goals", "Employee Resources", "Professional Development",
+        "Divisions", "ANT Library", "ANT Quick Assists", "ANT Requests", "Prompt Library", "Related Meetings", "Related Status Reports",
+        "Master Plans", "Briefs", "Announcements", "P.I.C.S Roadmaps", ...new Set(FIELD_DASH.map(([f]) => f)),
       ],
     }),
     listRecords(T.announcements, {
       fields: ["Title", "Body", "Type", "Target Page", "Department", "Status", "Publish Date", "Expires", "Pinned"],
     }),
     listRecords(T.antRequests, { fields: ["Status", "Related Department"] }),
-    listRecords(T.teamMembers, { fields: ["Name"] }),
+    listRecords(T.teamMembers, { fields: ["Name", "Role", "Reports To"] }),
     listRecords(T.pics, { fields: ["P.I.C.S Name", "Active"] }),
     listRecords(T.goals, {
       fields: [
@@ -118,6 +121,11 @@ async function loadLive(): Promise<HomeData> {
     nameMap(T.metrics, "Metric / Asset Name"),
     nameMap(T.masterPlans, "Plan Name"),
   ]);
+  const schema = await getSchema().catch(() => []);
+  const deptSchema = schema.find((t) => t.id === T.departments);
+  const memberSchema = schema.find((t) => t.id === T.teamMembers);
+  const memberRec = new Map(memberRecs.map((r) => [r.id, r]));
+  type Att = { url?: string; filename?: string; thumbnails?: { large?: { url?: string } } };
   const now = Date.now();
   const picsName = new Map(picsRecs.map((r) => [r.id, str(r.fields["P.I.C.S Name"]).trim()]));
   const profDevName = new Map(profDevRecs.map((r) => [r.id, str(r.fields["Development Initiative"]).trim()]));
@@ -196,12 +204,44 @@ async function loadLive(): Promise<HomeData> {
           budget: num(r.fields["Annual Budget"]),
           heads: names(r.fields["Department Head(s)"], memberName),
           members: names(r.fields["Team Members"], memberName),
-          orgChart: (r.fields["Dept. Org Chart"] as { url?: string; thumbnails?: { large?: { url?: string } } }[] | undefined)
-            ?.map((a) => a.thumbnails?.large?.url ?? a.url)
-            .find(Boolean),
+          divisions: arr(r.fields["Divisions"]),
+          people: (() => {
+            const headIds = links(r.fields["Department Head(s)"]);
+            const ids = [...new Set([...headIds, ...links(r.fields["Team Members"])])];
+            return ids.map((id) => {
+              const m = memberRec.get(id);
+              return {
+                id,
+                name: memberName.get(id) || UNNAMED,
+                role: arr(m?.fields["Role"]).join(", ") || undefined,
+                head: headIds.includes(id),
+                reportsTo: links(m?.fields["Reports To"]),
+              };
+            });
+          })(),
+          orgCharts: ((r.fields["Dept. Org Chart"] as Att[] | undefined) ?? [])
+            .filter((a) => a.url)
+            .map((a) => ({ thumb: a.thumbnails?.large?.url ?? a.url!, full: a.url!, name: a.filename ?? "Org chart" })),
           resources: docRecs
             .filter((d) => links(d.fields["Related Department(s)"]).includes(r.id) || links(r.fields["Employee Resources"]).includes(d.id))
-            .map((d) => ({ title: str(d.fields["Title"]).trim() || UNNAMED, href: str(d.fields["Link"]).trim() || undefined })),
+            .map((d) => ({ title: str(d.fields["Title"]).trim() || UNNAMED, href: str(d.fields["Link"]).trim() || undefined, category: str(d.fields["Category"]) || undefined })),
+          dashboards: [
+            ...new Set([
+              ...(DEPT_DASH[name] ?? []),
+              ...FIELD_DASH.filter(([f]) => (Array.isArray(r.fields[f]) ? links(r.fields[f]).length > 0 : bool(r.fields[f]))).map(([, k]) => k),
+              ...(links(r.fields["Professional Development"]).length ? ["profdev"] : []),
+            ]),
+          ],
+          ants: {
+            library: links(r.fields["ANT Library"]).length,
+            quickAssists: links(r.fields["ANT Quick Assists"]).length,
+            requests: links(r.fields["ANT Requests"]).length,
+            prompts: links(r.fields["Prompt Library"]).length,
+          },
+          work: (["Related Meetings", "Related Status Reports", "Performance Metrics", "Master Plans", "Briefs", "Announcements", "P.I.C.S Roadmaps"] as const).map((f) => ({
+            label: f,
+            count: links(r.fields[f]).length,
+          })),
           goals: links(r.fields["Department Goals"]).map((id) => ({ id, title: str(goalRecs.find((g) => g.id === id)?.fields["Goal"]).trim() || UNNAMED })),
           pics: links(r.fields["P.I.C.S 2"]).filter((id) => activePics.has(id)).map((id) => picsName.get(id) || UNNAMED),
           profDev: links(r.fields["Professional Development"]).length,
@@ -346,6 +386,8 @@ async function loadLive(): Promise<HomeData> {
     const key = r.name.toLowerCase();
     const rec = docRecs.find((d) => str(d.fields["Link"]).trim() && [str(d.fields["Title"]), str(d.fields["Category"])].some((v) => v.trim().toLowerCase() === key));
     if (rec) return { ...r, target: { href: str(rec.fields["Link"]).trim(), external: true } };
+    const hub = RESOURCE_TILE_PAGES[r.name];
+    if (hub) return { ...r, target: { href: hub, external: true } };
     return r.target && "soon" in r.target ? r : { ...r, target: undefined };
   });
 
@@ -363,6 +405,11 @@ async function loadLive(): Promise<HomeData> {
     resourcesLink: RESOURCES_LINK,
     docs,
     subDashboards: SUB_DASHBOARDS,
+    fieldMap: (deptSchema?.fields ?? []).map((f) => {
+      const m = FIELD_MAP[f.name];
+      return { name: f.name, type: f.type, placement: m?.[0] ?? "Not mapped yet", note: m ? m[1] : "New column — decide where it surfaces in the wiki" };
+    }),
+    hierarchyWritable: !!memberSchema?.fields.some((f) => f.name === "Reports To" && f.type === "multipleRecordLinks"),
   };
 }
 

@@ -50,16 +50,39 @@ export interface Department {
   /** In-app Department Wiki content (interim until the client's UAT mockup lands). */
   wiki?: DeptWiki;
 }
+/** A Team Members record as placed in a department hierarchy. */
+export interface WikiPerson {
+  id: string;
+  name: string;
+  role?: string;
+  head: boolean;
+  /** Team Members › Reports To (record ids). */
+  reportsTo: string[];
+}
 export interface DeptWiki {
   recordUrl: string;
   budget?: number | null;
+  divisions: string[];
   heads: string[];
   members: string[];
-  orgChart?: string;
-  resources: { title: string; href?: string }[];
+  /** Heads + team members with their Reports To links, for the hierarchy chart. */
+  people: WikiPerson[];
+  orgCharts: { thumb: string; full: string; name: string }[];
+  resources: { title: string; href?: string; category?: string }[];
+  /** Dashboard keys (lib/home-wiki DASHBOARDS). */
+  dashboards: string[];
+  ants: { library: number; quickAssists: number; requests: number; prompts: number };
   goals: { id: string; title: string }[];
   pics: string[];
+  work: { label: string; count: number }[];
   profDev: number;
+}
+/** One Airtable › Departments column and where it surfaces in the wiki (DEPT-4). */
+export interface FieldMapRow {
+  name: string;
+  type: string;
+  placement: string;
+  note?: string;
 }
 /** Goals table record, linked records resolved to names. */
 export interface Goal {
@@ -123,6 +146,10 @@ export interface HomeData {
   resourcesLink: string;
   docs: ResourceDoc[];
   subDashboards: typeof SUB_DASHBOARDS;
+  /** Every Departments column from the live schema (empty on the snapshot). */
+  fieldMap?: FieldMapRow[];
+  /** Team Members has a writable "Reports To" field, so hierarchy edits can be saved. */
+  hierarchyWritable?: boolean;
 }
 
 export const KPIS: Kpi[] = [
@@ -143,18 +170,18 @@ export const UPDATES: Update[] = [
   { dept: "Executive", text: "Q3 board deck approved and published to Briefs Hub.", when: "1 week ago" },
 ];
 
-export const NAV_CARDS: { title: string; target: Target; highlight?: boolean }[] = [
+export const NAV_CARDS: { title: string; target: Target; highlight?: boolean; sub?: string }[] = [
   { title: "Departments", target: { href: "/departments" } },
   { title: "Tools", target: { href: "/tools" } },
   { title: "Team Resources", target: { href: "/resources" } },
-  { title: "Operations", target: { href: "/pics" } },
-  { title: "Productivity", target: { href: "/productivity" } },
-  { title: "Product", target: { href: "/product" } },
-  { title: "Communications", target: { href: "/communications" } },
-  { title: "ANT Connector", target: { soon: "ANT Connector" } },
-  { title: "Marketing & Sales", target: { soon: "Marketing & Sales" } },
-  { title: "Social Impact", target: { soon: "Social Impact" } },
-  { title: "Briefs Hub", target: { soon: "Briefs Hub" } },
+  { title: "Operations", sub: "P.I.C.S & Reports", target: { href: "/pics" } },
+  { title: "Productivity", sub: "Meetings, schedules, checklists, reports", target: { href: "/productivity" } },
+  { title: "Product", sub: "acrylics.world performance", target: { href: "/product" } },
+  { title: "Communications", sub: "Inbox & updates", target: { href: "/communications" } },
+  { title: "ANT Connector", sub: "Soon", target: { soon: "ANT Connector" } },
+  { title: "Marketing & Sales", sub: "Soon", target: { soon: "Marketing & Sales" } },
+  { title: "Social Impact", sub: "Soon", target: { soon: "Social Impact" } },
+  { title: "Briefs Hub", sub: "Soon", target: { soon: "Briefs Hub" } },
 ];
 
 export const FAQS = [
@@ -255,8 +282,10 @@ export const RESOURCES: Resource[] = [
   { name: "Prompt Library", target: { soon: "ANT Connector" } },
   { name: "Tool Library", target: { href: AIRTABLE, external: true } },
   { name: "Professional Development", detail: "Phase 3" },
-  { name: "Policies & Procedures" },
-  { name: "SOPs" },
+  { name: "Policies & Procedures", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/2kz9rj7b-19117", external: true } },
+  { name: "SOPs", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/2kz9rj7b-3737", external: true } },
+  { name: "Manuals", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/2kz9rj7b-36257", external: true } },
+  { name: "Resource Hub", target: { href: "https://app.clickup.com/90171001067/docs/2kz9rj7b-977/", external: true } },
   { name: "Productivity Assistant", target: { soon: "ANT Connector" } },
 ];
 export const RESOURCES_LINK = page("pagukWisqqmdSogxj");

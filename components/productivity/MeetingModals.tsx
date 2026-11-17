@@ -6,6 +6,7 @@ import { Modal, StatusPill } from "@/components/ui";
 import { fmtFullDate, fmtFullDateWithWeekday, fmtFullTime, fmtKey, parseLocationLink } from "@/lib/productivity-logic";
 import type { Meeting, ReviewKind } from "@/lib/productivity-types";
 import { cx, fmtDT } from "@/lib/utils";
+import { ActionItemsSection } from "./ActionItems";
 import { useProductivity } from "./context";
 import { Empty, H, IconClock, IconTimer, Tag, useSessionNote } from "./shared";
 
@@ -136,18 +137,7 @@ export function MeetingDetailBody({
         {arCard("recap", mt.recapUrl, mt.recapAssignee, mt.recapApprover)}
       </div>
 
-      <H count={mt.actionItems.length}>Action items</H>
-      {mt.actionItems.length ? (
-        <ul className="space-y-1.5">
-          {mt.actionItems.map((a, i) => (
-            <li key={i} className="rounded-xl bg-plane px-3 py-2 text-[12.5px] font-semibold leading-snug">
-              {a}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty>No action items linked in Meetings Master for this record.</Empty>
-      )}
+      <ActionItemsSection meetingId={mt.id} />
     </>
   );
 }
@@ -195,11 +185,11 @@ export function DayMeetingsModal({ dateKey, onClose }: { dateKey: string; onClos
         {list.length ? (
           <ul className="space-y-2.5">
             {list.map((m) => (
-              <li key={m.id}>
+              <li key={m.id} className="rounded-2xl border border-line">
                 <button
                   type="button"
                   onClick={() => setMeetingId(m.id)}
-                  className="w-full rounded-2xl border border-line p-4 text-left transition hover:-translate-y-0.5 hover:border-brand hover:shadow-card"
+                  className="w-full rounded-2xl p-4 text-left transition hover:bg-plane/60"
                 >
                   <div className="text-[13px] font-extrabold leading-snug">{m.title}</div>
                   <div className="mt-0.5 text-[11.5px] text-muted">{fmtDT(m.dt)}</div>
@@ -212,6 +202,9 @@ export function DayMeetingsModal({ dateKey, onClose }: { dateKey: string; onClos
                     </div>
                   )}
                 </button>
+                <div className="px-4 pb-4">
+                  <ActionItemsSection meetingId={m.id} compact />
+                </div>
               </li>
             ))}
           </ul>

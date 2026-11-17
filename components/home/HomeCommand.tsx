@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
 import { DataSourceBadge, type Source } from "@/components/DataSource";
-import { IconArrowRight, IconChevron } from "@/components/icons";
+import { IconArrowRight } from "@/components/icons";
 import { CardHead, Select, useToast } from "@/components/ui";
 import { DepartmentWiki } from "@/components/home/DepartmentWiki";
 import { GoalPreview } from "@/components/home/GoalPreview";
@@ -150,7 +150,6 @@ function ToolMark({ tool, size }: { tool: Pick<Tool, "glyph" | "color" | "logo">
 
 function Overview({ has, data }: { has: Has; data: HomeData }) {
   const navCards = data.navCards.filter((n) => has(n.title));
-  const faqs = data.faqs.filter((f) => has(f.q, f.a));
   const [goal, setGoal] = useState<Goal | null>(null);
   const [goalsShown, setGoalsShown] = useState(3);
   const goals = data.goals.filter((g) => has(g.title, g.type, ...g.departments));
@@ -178,7 +177,7 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
       </div>
 
       <section id="north-star" className="card scroll-mt-6 p-6">
-        <CardHead eyebrow="Company direction" title="North Star Goals" />
+        <CardHead eyebrow="Company direction" title="North Star Goals" sub="Select a goal to preview it" />
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {data.northStar.length === 0 && <NoMatch text="No active North Star goals in Airtable." />}
           {data.northStar.map((g) => (
@@ -193,7 +192,10 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
               <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white">
                 <div className="h-full rounded-full bg-linear-to-r from-brand to-violet" style={{ width: `${g.progress}%` }} />
               </div>
-              <div className="mt-2 text-[12px] font-semibold text-ink-2">Progress {g.progress}%</div>
+              <div className="mt-2 flex justify-between gap-2 text-[12px] font-semibold text-ink-2">
+                <span>Progress {g.progress}%</span>
+                <span className="text-muted">{[data.goals.find((x) => x.id === g.id)?.quarter, "North Star"].filter(Boolean).join(" · ")}</span>
+              </div>
             </button>
           ))}
         </div>
@@ -201,7 +203,7 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
 
       {data.goals.length > 0 && (
         <section className="card p-6">
-          <CardHead eyebrow="Goals" title="All active goals" />
+          <CardHead eyebrow="Goals" title="All active goals" sub="From Airtable › Goals" />
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {goals.length === 0 && <NoMatch />}
             {goals.slice(0, goalsShown).map((g) => (
@@ -224,7 +226,10 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
                   <span className="block h-full rounded-full bg-linear-to-r from-brand to-violet" style={{ width: `${g.progress ?? 0}%` }} />
                 </span>
                 <span className="flex items-center justify-between text-[11.5px] font-semibold text-ink-2">
-                  Progress {g.progress ?? 0}%
+                  <span>
+                    Progress {g.progress ?? 0}%
+                    {(g.quarter || g.type) && <span className="text-muted"> · {[g.quarter, g.type].filter(Boolean).join(" · ")}</span>}
+                  </span>
                   {g.issues.length > 0 && <span className="rounded-full bg-[#fff4e8] px-2 py-0.5 text-[10px] font-bold text-[#a24d06]">Data to correct</span>}
                 </span>
               </button>
@@ -238,21 +243,8 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
         </section>
       )}
 
-      <section className="card flex flex-wrap items-center justify-between gap-4 bg-ink p-6 text-white">
-        <div>
-          <div className="eyebrow text-white/60">Ask the system</div>
-          <h3 className="mt-1 text-[20px] font-extrabold">ANTs</h3>
-          <p className="mt-1 max-w-prose text-[12.5px] text-white/75">
-            Search the ANT library, launch a Quick Assist prompt, or review the ANT Request Queue.
-          </p>
-        </div>
-        <TargetLink target={{ soon: "ANT Connector" }} label="Open ANTs" className="btn h-11 bg-white px-6 text-ink hover:bg-lav">
-          Open ANTs →
-        </TargetLink>
-      </section>
-
       <section className="card p-6">
-        <CardHead eyebrow="Jump in" title="Intranet Navigation" />
+        <CardHead eyebrow="Jump in" title="Intranet Navigation" sub="Only pages that exist in the intranet · whole card is the link" />
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
           {navCards.length ? (
             navCards.map((n) => (
@@ -265,7 +257,10 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
                   n.highlight ? "border-transparent bg-brand-soft" : "border-line bg-white",
                 )}
               >
-                <span className="text-[14px] font-extrabold">{n.title}</span>
+                <span>
+                  <span className="block text-[14px] font-extrabold">{n.title}</span>
+                  {n.sub && n.sub !== "Soon" && <span className="mt-0.5 block text-[11.5px] font-semibold text-muted">{n.sub}</span>}
+                </span>
                 <TargetHint target={n.target} />
               </TargetLink>
             ))
@@ -275,38 +270,7 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
         </div>
       </section>
 
-      <section className="card p-6">
-        <CardHead eyebrow="Need a hand" title="Frequently Asked Questions" />
-        <div className="mt-4 divide-y divide-line">
-          {faqs.length ? faqs.map((f) => <Faq key={f.q} q={f.q} a={f.a} />) : <NoMatch />}
-        </div>
-      </section>
     </>
-  );
-}
-
-function Faq({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-4 py-4 text-left text-[13.5px] font-bold"
-      >
-        {q}
-        <span
-          className={cx(
-            "grid size-7 shrink-0 place-items-center rounded-full transition",
-            open ? "rotate-180 bg-ink text-white" : "bg-plane text-ink-2",
-          )}
-        >
-          <IconChevron width={14} height={14} />
-        </span>
-      </button>
-      {open && <p className="-mt-1 pb-4 pr-10 text-[12.5px] leading-relaxed text-ink-2">{a}</p>}
-    </div>
   );
 }
 
@@ -318,7 +282,7 @@ function Departments({ has, data }: { has: Has; data: HomeData }) {
   return (
     <section className="card p-6">
       <DepartmentWiki key={open?.name} dept={open} data={data} onClose={() => setOpen(null)} />
-      <CardHead eyebrow="Find your team" title="Departments" sub="Each card opens the Department Wiki." />
+      <CardHead eyebrow="Find your team" title="Departments" sub="Select a department to open its wiki — hierarchy, dashboards, tools and team resources in one place." />
       <div className="mt-5 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
         {list.length ? (
           list.map((d) => (
@@ -338,7 +302,12 @@ function Departments({ has, data }: { has: Has; data: HomeData }) {
               {d.desc && <p className="px-5 pt-3 text-[12.5px] leading-relaxed text-ink-2">{d.desc}</p>}
               {d.members != null && (
                 <div className="flex flex-wrap gap-1.5 px-5 pt-3 text-[11.5px] font-bold">
-                  {[`${d.members} members`, `${d.activePics ?? 0} active P.I.C.S`, `${d.openAnt ?? 0} open ANT requests`].map((m) => (
+                  {[
+                    `${d.members} members`,
+                    `${d.tools.length} tools`,
+                    `${d.wiki?.resources.length ?? 0} resources`,
+                    ...(d.wiki?.budget ? [`$${Math.round(d.wiki.budget / 1000)}K budget`] : []),
+                  ].map((m) => (
                     <span key={m} className="rounded-full px-2.5 py-0.5" style={{ color: d.color, background: `${d.color}1a` }}>
                       {m}
                     </span>
@@ -387,6 +356,7 @@ function Tools({ has, data }: { has: Has; data: HomeData }) {
       <CardHead
         eyebrow="Get equipped"
         title="Tools"
+        sub="Every tool from Airtable › Tool Library (Tool Name · Tool Logo · Product Description · Tool URL). Select a tool to open it."
         right={
           <Select
             label="Filter by department"

@@ -133,29 +133,135 @@ function guard(tableId: string, fields: Fields, allowed: Allow) {
   if (bad.length) throw new AirtableError(`Fields not writable on ${tableId}: ${bad.join(", ")}`, 403);
 }
 
-/** Update one record (PATCH: only the given fields change). */
-export async function updateRecord(tableId: string, recordId: string, fields: Fields, allowed: Allow, typecast = true) {
-  guard(tableId, fields, allowed);
-  if (!/^rec[A-Za-z0-9]{14}$/.test(recordId)) throw new AirtableError(`Bad record id ${recordId}`, 400);
-  const r = (await call(`${API}/${BASE_ID}/${tableId}/${recordId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ fields, typecast }),
-    cache: "no-store",
-  })) as AtRecord;
-  revalidateTag(tableTag(tableId), { expire: 0 });
-  return r;
+/* ---------------------------------------------------------------- Dashboard Sync Queue
+   Client rule (UAT GL, section 2): every inline edit goes through Dashboard Sync Queue.
+   Each write first logs a Pending row (one per batch: all field names + old → new values),
+   then applies the change and marks the row Applied, or Failed with the error. The queue row
+   is an audit trail; a failed log never blocks the edit itself. */
+export const SYNC_QUEUE = "tblhhkaLCF4Qlxzc9";
+
+/** Where an edit came from, for the queue row. */
+export interface Audit {
+  /** e.g. "PICS Operations", "Productivity Center", "Product", "Communications", "Home". */
+  dashboard: string;
+  /** Tab / Area, e.g. "Checklist drawer". */
+  area?: string;
+  /** Team Members record id of the editor, once sign-in exists. */
+  editedBy?: string;
+  /** Groups several writes made by one user action. */
+  batchId?: string;
 }
 
-/** Create one record. */
-export async function createRecord(tableId: string, fields: Fields, allowed: Allow, typecast = true) {
+const tableName = async (tableId: string) => (await getSchema()).find((t) => t.id === tableId)?.name ?? tableId;
+
+async function queueOpen(action: "Create" | "Update" | "Delete-request", tableId: string, recordId: string, fields: Fields, old: Fields | null, audit?: Audit) {
+  try {
+    const diff = Object.keys(fields)
+      .map((k) => `${k}: ${old ? JSON.stringify(old[k] ?? null) : "—"} → ${JSON.stringify(fields[k] ?? null)}`)
+      .join("\n");
+    const r = (await call(`${API}/${BASE_ID}/${SYNC_QUEUE}`, {
+      method: "POST",
+      cache: "no-store",
+      // typecast: lets new dashboards / target tables appear as select options.
+      body: JSON.stringify({
+        typecast: true,
+        fields: {
+          Dashboard: audit?.dashboard || "Intranet",
+          "Tab / Area": audit?.area || "",
+          Action: action,
+          "Target Table": await tableName(tableId),
+          "Target Record ID": recordId,
+          "Field Name": Object.keys(fields).join(", "),
+          "Old Value / New Value": diff.slice(0, 90000),
+          Status: "Pending",
+          "Batch ID": audit?.batchId || "",
+          ...(audit?.editedBy ? { "Edited By": [audit.editedBy] } : {}),
+        },
+      }),
+    })) as AtRecord;
+    return r.id;
+  } catch (e) {
+    console.error("[sync-queue] could not log edit", e);
+    return null;
+  }
+}
+
+async function queueClose(queueId: string | null, ok: boolean, error?: string, recordId?: string) {
+  if (!queueId) return;
+  try {
+    await call(`${API}/${BASE_ID}/${SYNC_QUEUE}/${queueId}`, {
+      method: "PATCH",
+      cache: "no-store",
+      body: JSON.stringify({
+        fields: {
+          Status: ok ? "Applied" : "Failed",
+          ...(ok ? { "Applied At": new Date().toISOString() } : { Error: (error || "").slice(0, 5000) }),
+          ...(recordId ? { "Target Record ID": recordId } : {}),
+        },
+      }),
+    });
+    revalidateTag(tableTag(SYNC_QUEUE), { expire: 0 });
+  } catch (e) {
+    console.error("[sync-queue] could not close entry", e);
+  }
+}
+
+/** Update one record (PATCH: only the given fields change). Logged to Dashboard Sync Queue. */
+export async function updateRecord(tableId: string, recordId: string, fields: Fields, allowed: Allow, typecast = true, audit?: Audit) {
   guard(tableId, fields, allowed);
-  const r = (await call(`${API}/${BASE_ID}/${tableId}`, {
-    method: "POST",
-    body: JSON.stringify({ fields, typecast }),
-    cache: "no-store",
-  })) as AtRecord;
-  revalidateTag(tableTag(tableId), { expire: 0 });
-  return r;
+  if (!/^rec[A-Za-z0-9]{14}$/.test(recordId)) throw new AirtableError(`Bad record id ${recordId}`, 400);
+  // Old values for the audit row (best effort; one extra read).
+  let old: Fields | null = null;
+  try {
+    old = ((await call(`${API}/${BASE_ID}/${tableId}/${recordId}`, { cache: "no-store" })) as AtRecord).fields;
+  } catch {}
+  const q = await queueOpen("Update", tableId, recordId, fields, old, audit);
+  try {
+    const r = (await call(`${API}/${BASE_ID}/${tableId}/${recordId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ fields, typecast }),
+      cache: "no-store",
+    })) as AtRecord;
+    await queueClose(q, true);
+    revalidateTag(tableTag(tableId), { expire: 0 });
+    return r;
+  } catch (e) {
+    await queueClose(q, false, e instanceof Error ? e.message : String(e));
+    throw e;
+  }
+}
+
+/** Create one record. Logged to Dashboard Sync Queue. */
+export async function createRecord(tableId: string, fields: Fields, allowed: Allow, typecast = true, audit?: Audit) {
+  guard(tableId, fields, allowed);
+  const q = await queueOpen("Create", tableId, "", fields, null, audit);
+  try {
+    const r = (await call(`${API}/${BASE_ID}/${tableId}`, {
+      method: "POST",
+      body: JSON.stringify({ fields, typecast }),
+      cache: "no-store",
+    })) as AtRecord;
+    await queueClose(q, true, undefined, r.id);
+    revalidateTag(tableTag(tableId), { expire: 0 });
+    return r;
+  } catch (e) {
+    await queueClose(q, false, e instanceof Error ? e.message : String(e));
+    throw e;
+  }
+}
+
+/** Delete one record (e.g. PROD-11 "Delete task"). Logged as Delete-request in Dashboard Sync Queue. */
+export async function deleteRecord(tableId: string, recordId: string, audit?: Audit) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(recordId)) throw new AirtableError(`Bad record id ${recordId}`, 400);
+  const q = await queueOpen("Delete-request", tableId, recordId, {}, null, audit);
+  try {
+    await call(`${API}/${BASE_ID}/${tableId}/${recordId}`, { method: "DELETE", cache: "no-store" });
+    await queueClose(q, true);
+    revalidateTag(tableTag(tableId), { expire: 0 });
+  } catch (e) {
+    await queueClose(q, false, e instanceof Error ? e.message : String(e));
+    throw e;
+  }
 }
 
 /* ---------------------------------------------------------------- field helpers */
