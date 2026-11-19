@@ -222,6 +222,7 @@ export function TopBar({
           <IconBell width={21} height={21} />
           <span className="absolute right-0 top-0 size-2 rounded-full bg-brand ring-2 ring-white" />
         </button>
+        <SettingsMenu />
         <div className="flex shrink-0 items-center gap-3">
           <Avatar initials="ID" size={42} />
           <div className="hidden leading-tight xl:block">
@@ -231,6 +232,57 @@ export function TopBar({
         </div>
       </div>
     </header>
+  );
+}
+
+/* ⚙ menu in the top bar: profile, what the intranet is, and the Airtable link
+   (moved here from the right-hand side panel at the client's request). */
+function SettingsMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        aria-label="Settings"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-plane hover:text-ink"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-11 z-50 w-72 rounded-2xl border border-line bg-white p-5 text-center shadow-pop">
+          <div className="flex justify-center">
+            <Avatar initials="ID" size={56} ring />
+          </div>
+          <div className="mt-3 text-[15px] font-semibold">Isis Darks</div>
+          <div className="text-[11.5px] text-muted">CEO · Executive</div>
+          <div className="mt-3 text-[16px] font-extrabold tracking-tight">VCG Intranet</div>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-2">Operations, P.I.C.S roadmaps and team productivity in one place.</p>
+          <a href={AIRTABLE_BASE_URL} target="_blank" rel="noopener" className="btn btn-dark mt-4 h-9 w-full">
+            Open Airtable
+          </a>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -280,19 +332,8 @@ export function SidePanel({
           <IconSync width={18} height={18} />
         </span>
       </div>
-      <div className="mt-6 flex flex-col items-center text-center">
-        <Avatar initials="ID" size={78} ring />
-        <div className="mt-4 text-[18px] font-semibold">Isis Darks</div>
-        <div className="text-[11.5px] text-muted">CEO · Executive</div>
-        <div className="mt-4 text-[24px] font-extrabold leading-tight tracking-tight">VCG Intranet</div>
-        <p className="mt-2 max-w-[250px] text-[12.5px] leading-relaxed text-ink-2">
-          Operations, P.I.C.S roadmaps and team productivity in one place.
-        </p>
-        <a href={AIRTABLE_BASE_URL} target="_blank" rel="noopener" className="btn btn-dark mt-5 h-10 px-6">
-          Open Airtable
-        </a>
-      </div>
-      <div className="mt-10">
+      {/* Client feedback (Nov 19): the profile card moved into the ⚙ settings menu in the top bar. */}
+      <div className="mt-6">
         <div className="eyebrow mb-3">{feedTitle}</div>
         <ul className="divide-y divide-line-2">{children}</ul>
       </div>
