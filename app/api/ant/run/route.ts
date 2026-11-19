@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const b = (await req.json().catch(() => null)) as { requestId?: unknown } | null;
   if (!isRecId(b?.requestId)) return fail("requestId must be an Airtable record id", 400);
   try {
-    const output = await runAntRequest(b.requestId, (s, m) => callClaude(s, m, 8000));
+    const output = await runAntRequest(b.requestId, (s, m) => callClaude(s, m, 2048));
     return Response.json({ ok: true, output });
   } catch (e) {
     if (e instanceof ClaudeError) return fail(e.message, e.status);

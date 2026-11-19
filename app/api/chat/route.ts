@@ -9,12 +9,12 @@
    GET /api/chat → {configured} so the UI can show "AI not connected yet" before anyone types.
    503 until ANTHROPIC_API_KEY is set. */
 import { buildSystemPrompt } from "@/lib/ant-data.server";
-import { callClaude, ClaudeError, claudeConfigured, CLAUDE_MODEL, trimHistory } from "@/lib/ant-claude.server";
+import { callClaude, ClaudeError, claudeConfigured, claudeUsage, CLAUDE_MODEL, trimHistory } from "@/lib/ant-claude.server";
 import type { ChatMsg } from "@/lib/ant-types";
 
 export const dynamic = "force-dynamic";
 
-const MAX_INPUT = 200_000; // characters across the whole conversation (legacy shape)
+const MAX_INPUT = 20_000; // characters across the whole conversation (legacy shape) — spend cap
 
 interface ChatBody {
   antId?: string;
@@ -29,7 +29,7 @@ interface ChatBody {
 const fail = (error: string, status: number) => Response.json({ ok: false, error }, { status });
 
 export function GET() {
-  return Response.json({ configured: claudeConfigured(), model: CLAUDE_MODEL });
+  return Response.json({ configured: claudeConfigured(), model: CLAUDE_MODEL, usage: claudeUsage() });
 }
 
 export async function POST(req: Request) {
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const r = await callClaude(system, messages, antMode ? 4096 : 16000);
+    const r = await callClaude(system, messages) // capped by CLAUDE_MAX_OUTPUT_TOKENS;
     return Response.json({ ok: true, reply: r.reply, model: r.model, ...(antName ? { antName } : {}), ...(r.truncated ? { truncated: true } : {}) });
   } catch (e) {
     if (e instanceof ClaudeError) return fail(e.message, e.status);

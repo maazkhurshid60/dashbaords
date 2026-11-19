@@ -177,8 +177,8 @@ export async function loadRequestDetail(id: string): Promise<AntRequestDetail | 
 }
 
 /* ---------------------------------------------------------------- system prompt */
-const BRAIN_MAX = 24_000;
-const SECTION_MAX = 4_000;
+const BRAIN_MAX = 8_000; // spend cap: an ANT's brain is sent with every message
+const SECTION_MAX = 1_500;
 
 /** Readable name of the dashboard a pathname belongs to. */
 export function pageLabel(path: string) {
