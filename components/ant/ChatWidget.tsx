@@ -26,7 +26,7 @@ export function ChatWidget() {
           aria-label="Ask an ANT (AI assistant)"
           title="Ask an ANT"
           className={cx(
-            "fixed bottom-6 z-40 flex size-12 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-ink text-[12px] font-bold text-white shadow-pop transition hover:bg-brand md:w-auto md:px-4",
+            "fixed bottom-20 z-40 flex size-12 md:bottom-6 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-ink text-[12px] font-bold text-white shadow-pop transition hover:bg-brand md:w-auto md:px-4",
             onPics ? "right-[84px]" : "right-6",
           )}
         >

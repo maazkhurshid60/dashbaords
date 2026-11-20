@@ -167,9 +167,12 @@ export function mountPicsCard(host: HTMLElement, opts: CardEngineOptions): CardE
     const n = t => t==='All' ? inDept().length : inDept().filter(p=>p.type===t).length;
     $('#typeTabs').innerHTML = types.map(t => `<button class="${t===typeFilter?'on':''}" data-type="${t}">${t} <span class="muted" style="font-weight:500">${n(t)}</span></button>`).join('');
   }
+  let gridAll = false;
   function renderGrid(){
     const recs = inDept().filter(p => typeFilter==='All' || p.type===typeFilter);
-    $('#grid').innerHTML = recs.length ? recs.map(cardHTML).join('') : `<div class="empty">No ${typeFilter} records.</div>`;
+    const LIM = 12, shown = gridAll ? recs : recs.slice(0, LIM);
+    const more = recs.length > LIM ? `<div style="grid-column:1/-1;text-align:center"><button class="btn" data-grid-more="1">${gridAll ? 'Show fewer' : 'Show all (' + recs.length + ')'}</button></div>` : '';
+    $('#grid').innerHTML = recs.length ? shown.map(cardHTML).join('') + more : `<div class="empty">No ${typeFilter} records.</div>`;
   }
   function cardHTML(p){
     const {rm, cls, ci} = scopeData(p.id);
@@ -1066,6 +1069,7 @@ export function mountPicsCard(host: HTMLElement, opts: CardEngineOptions): CardE
     applyDeptTitle(); if (!inDept().some(p=>p.type===typeFilter)) typeFilter='All';
   })();
   function applyDeptTitle(){ $('#pageTitle').textContent = deptFilter ? `${deptFilter} · P.I.C.S Roadmaps` : 'P.I.C.S Records'; }
+  $('#grid').addEventListener('click', e => { if (e.target.closest('[data-grid-more]')) { e.stopPropagation(); gridAll = !gridAll; renderGrid(); } });
   renderTabs(); renderGrid();
   if (opts.openId) { const p = findPics(opts.openId); if (p) openModal(p.id); }
   /* ---------------- [APP] external API ---------------- */

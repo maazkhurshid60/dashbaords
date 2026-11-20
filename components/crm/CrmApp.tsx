@@ -39,7 +39,7 @@ function Shell() {
     if (tab === "Updates" && !isAdmin) go("Inbox");
   }, [tab, isAdmin, go]);
   return (
-    <div className="mx-auto max-w-[1500px] px-4 py-6 md:px-6">
+    <div className="mx-auto w-full min-w-0 max-w-[1500px] px-4 py-6 md:px-6">
       <Header />
       {D.errors.length > 0 && <div className="mt-3 rounded-lg bg-bad-soft px-3 py-2 text-[12.5px] text-bad">Some Airtable tables didn&apos;t load: {D.errors.join(" · ")}</div>}
       <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-line">

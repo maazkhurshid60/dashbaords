@@ -216,7 +216,7 @@ export function MeetingsPipelineView({
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <MiniCalendar year={year} month={month} heading={`Meetings schedule: ${label}`} onDay={onDay} />
-        <MiniCalendar year={next.year} month={next.month} heading={`A look ahead: ${monthLabel(next.year, next.month)}`} onDay={onDay} />
+        <div className="hidden md:block"><MiniCalendar year={next.year} month={next.month} heading={`A look ahead: ${monthLabel(next.year, next.month)}`} onDay={onDay} /></div>
       </div>
 
       <div ref={agendasRef} className="scroll-mt-6">

@@ -276,7 +276,7 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
 function Departments({ has, data }: { has: Has; data: HomeData }) {
   const list = data.departments.filter((d) => has(d.name, d.desc, ...d.tools, ...(d.heads ?? [])));
   const [open, setOpen] = useState<Department | null>(null);
-  const [visible, toggle] = useShowAll(list, 12);
+  const [visible, toggle] = useShowAll(list, 6);
   return (
     <section className="card p-6">
       <DepartmentWiki key={open?.name} dept={open} data={data} onClose={() => setOpen(null)} />

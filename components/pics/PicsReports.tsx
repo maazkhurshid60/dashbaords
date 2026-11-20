@@ -3,7 +3,7 @@
 /* Reports view (renderReportFilterTabs / renderReportGrid), report detail and New report modals. */
 import { useState } from "react";
 import { IconDoc, IconExternal, IconPlus } from "@/components/icons";
-import { CardHead, Modal, useToast } from "@/components/ui";
+import { CardHead, Modal, useShowAll, useToast } from "@/components/ui";
 import { todayISO } from "@/lib/pics";
 import { REPORT_STATUS_TONE, periodLabel } from "@/lib/pics-reports";
 import type { PicsReport } from "@/lib/pics-types";
@@ -55,6 +55,7 @@ export function ReportsView({
         ),
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const [shown, toggle] = useShowAll(list, 9);
 
   return (
     <>
@@ -86,7 +87,7 @@ export function ReportsView({
 
         {list.length ? (
           <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-            {list.map((r) => {
+            {shown.map((r) => {
               const pics = r.picsId ? byId[r.picsId] : undefined;
               return (
                 <button
@@ -105,7 +106,7 @@ export function ReportsView({
                   {r.overview && (
                     <div className="mt-3">
                       <div className="eyebrow text-ink-2">Report overview</div>
-                      <p className="mt-1 line-clamp-4 whitespace-pre-line text-[12px] leading-relaxed text-ink-2">{r.overview}</p>
+                      <p className="mt-1 line-clamp-2 whitespace-pre-line text-[12px] leading-relaxed text-ink-2">{r.overview}</p>
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-1.5">
@@ -129,6 +130,7 @@ export function ReportsView({
         ) : (
           <div className="mt-5 rounded-2xl bg-plane p-8 text-center text-[13px] text-muted">No reports match this filter.</div>
         )}
+        {toggle}
       </section>
     </>
   );
