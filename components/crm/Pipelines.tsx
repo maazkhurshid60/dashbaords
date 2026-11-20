@@ -164,7 +164,7 @@ export function Pipelines() {
                     </span>
                     <span className="text-muted">{moneyShort(sum(col, (o) => o.value || 0))}</span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="scroll-thin max-h-[560px] space-y-2 overflow-y-auto">
                     {col.map((o) => (
                       <OppCard key={o.id} o={o} />
                     ))}
@@ -176,12 +176,12 @@ export function Pipelines() {
         </div>
       )}
       {mode === "List" && (
-        <div className="card overflow-x-auto">
+        <div className="card scroll-thin max-h-[640px] overflow-auto">
           <table className="w-full text-[13px]">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white">
               <tr className="border-b border-line text-left text-[11.5px] text-muted">
                 {["Opportunity", "Pipeline", "Stage", "Value", "Close", "Next step", "Owner", "Days in stage"].map((h) => (
-                  <th key={h} className="px-3 py-2">
+                  <th key={h} className="whitespace-nowrap px-3 py-2">
                     {h}
                   </th>
                 ))}

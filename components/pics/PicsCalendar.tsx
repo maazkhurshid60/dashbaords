@@ -35,7 +35,7 @@ function calendarItems(records: PicsRecord[]): CalItem[] {
   ]);
 }
 
-/* Interactive month view; the selected day lists its meetings and (10 at a time) its checklist items. */
+/* Interactive month view; the selected day lists its meetings and (8 at a time) its checklist items. */
 export function PicsCalendar({ records, onEditChecklist }: { records: PicsRecord[]; onEditChecklist: (recId: string, idx: number) => void }) {
   const today = todayISO();
   const [ym, setYm] = useState(() => ({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 }));
@@ -95,7 +95,7 @@ export function PicsCalendar({ records, onEditChecklist }: { records: PicsRecord
         }
       />
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="min-w-0">
           <div className="grid grid-cols-7 gap-1 text-center text-[10.5px] font-bold uppercase tracking-wider text-muted sm:gap-1.5">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
@@ -151,7 +151,7 @@ export function PicsCalendar({ records, onEditChecklist }: { records: PicsRecord
           </div>
         </div>
 
-        <div className="min-w-0 rounded-2xl bg-plane p-4">
+        <div className="min-w-0 rounded-2xl bg-plane p-4 max-lg:max-h-[640px] max-lg:overflow-y-auto lg:max-h-[560px] lg:overflow-y-auto">
           <div className="text-[13px] font-extrabold">
             {new Date(selected + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </div>
@@ -163,11 +163,15 @@ export function PicsCalendar({ records, onEditChecklist }: { records: PicsRecord
               <SubHead label="Meetings" n={meetings.length} />
               <ul className="space-y-2">
                 {meetings.map((it, i) => (
-                  <li key={i} className="flex gap-2.5 rounded-xl bg-white p-3">
-                    <span className="mt-1 h-8 w-1 shrink-0 rounded-full" style={{ background: KIND_COLOR.meeting }} />
-                    <div className="min-w-0">
-                      <div className="text-[12.5px] font-semibold leading-snug">{it.label}</div>
-                      <div className="mt-0.5 text-[11px] text-muted">{it.parent} · Meeting</div>
+                  <li key={i} className="flex gap-2.5 rounded-xl bg-white px-3 py-2">
+                    <span className="h-8 w-1 shrink-0 self-center rounded-full" style={{ background: KIND_COLOR.meeting }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[12.5px] font-semibold leading-snug" title={it.label}>
+                        {it.label}
+                      </div>
+                      <div className="truncate text-[11px] text-muted" title={it.parent}>
+                        {it.parent} · Meeting
+                      </div>
                     </div>
                   </li>
                 ))}

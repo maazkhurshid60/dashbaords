@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { IconCheck, IconChevronLeft, IconUsers } from "@/components/icons";
-import { Avatar, CardHead, StatusPill } from "@/components/ui";
+import { Avatar, CardHead, StatusPill, useShowAll } from "@/components/ui";
 import type { ChecklistRecord } from "@/lib/productivity-types";
 import { isoWeekOfKey } from "@/lib/productivity-logic";
 import { cx, plural } from "@/lib/utils";
@@ -35,6 +35,7 @@ export function SchedulesView({
   const approved = checklists.filter((c) => c.approval === "Approved").length;
   const awaiting = checklists.filter((c) => ["Not Started", "In Progress", "In Review"].includes(c.approval)).length;
   const schedules = SCHEDULES.filter((s) => hit(s.member, s.weekId, s.checklistId, ...s.tasks.map((t) => t.label)));
+  const [schedShown, schedToggle] = useShowAll(schedules, 9);
   const shown = checklists.filter((c) => hit(c.member, c.checklistId, ...c.items.map((i) => i.label)));
 
   return (
@@ -80,7 +81,7 @@ export function SchedulesView({
         />
         <div className="mt-5 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {schedules.length === 0 && <NoMatch>{SCHEDULES.length ? undefined : "No Weekly Schedules records for this week in Airtable."}</NoMatch>}
-          {schedules.map((s) => {
+          {schedShown.map((s) => {
             const empty = !s.hours && !s.tasks.length;
             return (
               <button
@@ -108,6 +109,7 @@ export function SchedulesView({
             );
           })}
         </div>
+        {schedToggle}
       </section>
 
       <section className="card p-6">

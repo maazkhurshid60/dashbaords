@@ -303,3 +303,17 @@ export function Select({
     </select>
   );
 }
+
+/* Caps a long list: returns the first `limit` items plus a "Show all (N)" /
+   "Show fewer" toggle (null when the list is short enough). */
+export function useShowAll<T>(items: T[], limit = 10, className = "btn btn-sm mt-4") {
+  const [all, setAll] = useState(false);
+  const capped = items.length > limit;
+  const visible = capped && !all ? items.slice(0, limit) : items;
+  const toggle = capped ? (
+    <button type="button" className={className} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+      {all ? "Show fewer" : `Show all (${items.length})`}
+    </button>
+  ) : null;
+  return [visible, toggle] as const;
+}

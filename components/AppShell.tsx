@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   IconBell,
   IconBook,
@@ -318,12 +318,37 @@ export function SidePanel({
   feedTitle,
   children,
   footnote,
+  empty,
+  limit = 6,
 }: {
   title: string;
   feedTitle: string;
-  children: ReactNode;
+  children?: ReactNode;
   footnote?: string;
+  /** Shown instead of the feed when there are no items; the panel collapses to a slim strip. */
+  empty?: string;
+  /** Feed items shown before "Show all (N)". */
+  limit?: number;
 }) {
+  const [all, setAll] = useState(false);
+  const items = Children.toArray(children);
+  const isEmpty = items.length === 0;
+  const shown = all ? items : items.slice(0, limit);
+  if (isEmpty)
+    return (
+      <aside className="w-full shrink-0 border-t border-line bg-plane px-5 py-4 xl:w-[240px] xl:border-l xl:border-t-0 xl:py-6">
+        <div className="flex items-center justify-between">
+          <span className="eyebrow">{title}</span>
+          <span className="relative text-muted" title="Airtable sync pending">
+            <IconSync width={16} height={16} />
+          </span>
+        </div>
+        <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2.5 text-[12px] text-muted">
+          <span className="eyebrow mb-1 block">{feedTitle}</span>
+          {empty ?? "Nothing here yet."}
+        </div>
+      </aside>
+    );
   return (
     <aside className="w-full shrink-0 border-t border-line bg-plane px-6 py-8 xl:w-[330px] xl:border-l xl:border-t-0">
       <div className="flex items-center justify-between">
@@ -335,7 +360,12 @@ export function SidePanel({
       {/* Client feedback (Nov 19): the profile card moved into the ⚙ settings menu in the top bar. */}
       <div className="mt-6">
         <div className="eyebrow mb-3">{feedTitle}</div>
-        <ul className="divide-y divide-line-2">{children}</ul>
+        <ul className="divide-y divide-line-2">{shown}</ul>
+        {items.length > limit && (
+          <button type="button" className="btn btn-sm mt-3 w-full" onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? "Show fewer" : `Show all (${items.length})`}
+          </button>
+        )}
       </div>
       {footnote ? <p className="mt-6 text-center font-mono text-[11px] text-muted">{footnote}</p> : null}
     </aside>

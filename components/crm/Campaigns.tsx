@@ -64,12 +64,12 @@ export function Campaigns() {
         <Stat label="Reply rate" value={`${pct(sum("replied"), sent)}%`} />
         <Stat label="Bounce rate" value={`${pct(sum("bounced"), sent)}%`} />
       </div>
-      <div className="card overflow-x-auto">
+      <div className="card scroll-thin max-h-[640px] overflow-auto">
         <table className="w-full text-[13px]">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b border-line text-left text-[11.5px] text-muted">
               {["Campaign", "Channel", "Status", "Steps", "Prospects", "Sent", "Opened", "Clicked", "Replied", "Bounced", "Owner"].map((h) => (
-                <th key={h} className="px-3 py-2">
+                <th key={h} className="whitespace-nowrap px-3 py-2">
                   {h}
                 </th>
               ))}

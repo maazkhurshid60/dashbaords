@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { IconChevron, IconDoc } from "@/components/icons";
-import { CardHead, Select } from "@/components/ui";
+import { CardHead, Select, useShowAll } from "@/components/ui";
 import type { MasterReport } from "@/lib/productivity-types";
 import { cx, fmt, plural } from "@/lib/utils";
 import { useProductivity } from "./context";
@@ -85,11 +85,12 @@ function ReportGroups({
   const [openDepts, setOpenDepts] = useState<Set<string>>(() => new Set());
   const { reportStatusOptions } = useProductivity();
   const groups = [...new Set(list.map((r) => monthKey(r.date)))].sort().reverse();
+  const [groupsShown, groupsToggle] = useShowAll(groups, 6, "btn btn-sm mt-2");
 
   return (
     <div className="mt-5 space-y-2">
       {groups.length === 0 && <div className="rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">No reports match this filter.</div>}
-      {groups.map((mk) => {
+      {groupsShown.map((mk) => {
         const items = list.filter((r) => monthKey(r.date) === mk);
         const isOpen = openMonths.has(mk);
         return (
@@ -128,7 +129,7 @@ function ReportGroups({
                         <span className="text-[11px] font-semibold text-muted">{plural(rows.length, "report")}</span>
                       </button>
                       {deptOpen && (
-                        <ul className="mt-1.5 space-y-1.5">
+                        <ul className="scroll-thin mt-1.5 max-h-[420px] space-y-1.5 overflow-y-auto">
                           {rows.map((r) => (
                             <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-plane px-4 py-3 sm:flex-nowrap">
                               <button type="button" onClick={() => onOpen(r.id)} className="min-w-0 flex-1 text-left">
@@ -170,6 +171,7 @@ function ReportGroups({
           </div>
         );
       })}
+      {groupsToggle}
     </div>
   );
 }

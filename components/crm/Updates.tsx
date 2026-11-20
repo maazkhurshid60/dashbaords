@@ -6,6 +6,7 @@ import { nowMs } from "@/lib/crm-logic";
 import type { Announcement } from "@/lib/crm-types";
 import { Chip, Com, Empty, H, cx } from "./bits";
 import { useCrm } from "./store";
+import { useShowAll } from "@/components/ui";
 
 const FILTERS = ["All", "Announcements", "Updates", "Opportunity activity", "Wins", "Following"] as const;
 type F = (typeof FILTERS)[number];
@@ -26,6 +27,7 @@ export function Updates() {
     (x === "Following" && a.oppIds.some((o) => followed.has(o)));
   const feed = D.announcements.filter((a) => match(a, f)).sort((a, b) => Number(b.pinned) - Number(a.pinned) || ts(b.publishDate || b.created) - ts(a.publishDate || a.created));
   const month = new Date().toISOString().slice(0, 7);
+  const [feedShown, feedToggle] = useShowAll(feed, 10);
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-6">
@@ -39,7 +41,7 @@ export function Updates() {
           <Com id="COM-18" />
         </div>
         <div className="space-y-3">
-          {feed.map((a) => (
+          {feedShown.map((a) => (
             <article key={a.id} className="card p-4 text-[13px]">
               <div className="flex flex-wrap items-center gap-1.5">
                 {a.pinned && <Chip tone="warn">📌 Pinned</Chip>}
@@ -68,6 +70,7 @@ export function Updates() {
           ))}
           {!feed.length && <Empty>No updates yet.</Empty>}
         </div>
+        {feedToggle}
       </div>
       <aside className="space-y-4">
         <section className="card p-4">

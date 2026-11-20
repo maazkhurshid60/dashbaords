@@ -194,7 +194,7 @@ export function ActionItemsSection({ meetingId, compact = false }: { meetingId: 
       )}
 
       {data.items.length ? (
-        <ul className="space-y-1.5">
+        <ul className="scroll-thin max-h-[560px] space-y-1.5 overflow-y-auto pr-1">
           {data.items.map((i) => (
             <ItemRow
               key={i.id}

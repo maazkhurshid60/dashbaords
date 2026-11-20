@@ -159,7 +159,7 @@ export function ChatPanel({ compact, listen, onSeed }: { compact?: boolean; list
           ))}
         </select>
         {msgs.length > 0 && (
-          <button type="button" className="btn btn-sm" onClick={() => (setMsgs([]), setSavedId(""), setError(""))}>
+          <button type="button" className="btn btn-sm min-h-8 whitespace-nowrap" onClick={() => (setMsgs([]), setSavedId(""), setError(""))}>
             New chat
           </button>
         )}
@@ -167,7 +167,7 @@ export function ChatPanel({ compact, listen, onSeed }: { compact?: boolean; list
 
       {configured === false && (
         <div className="mx-4 mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-[12px] leading-relaxed text-warn">
-          <strong>AI not connected yet</strong> — add <code className="font-mono">ANTHROPIC_API_KEY</code> to the server environment (.env.local) and restart. Quick Assists, prompts
+          <strong>AI not connected yet</strong> â€” add <code className="font-mono">ANTHROPIC_API_KEY</code> to the server environment (.env.local) and restart. Quick Assists, prompts
           and ANT Requests still work.
         </div>
       )}
@@ -175,8 +175,8 @@ export function ChatPanel({ compact, listen, onSeed }: { compact?: boolean; list
       <div ref={scroller} className="scroll-thin min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {msgs.length === 0 && (
           <div className="rounded-2xl bg-plane p-4 text-[12.5px] leading-relaxed text-ink-2">
-            Ask <strong className="text-ink">{antName}</strong> anything about your work. It knows which page you’re on
-            {antId ? " and answers from this ANT’s brain, functions and expected outputs." : "; pick a specialist ANT above for department work."}
+            Ask <strong className="text-ink">{antName}</strong> anything about your work. It knows which page youâ€™re on
+            {antId ? " and answers from this ANTâ€™s brain, functions and expected outputs." : "; pick a specialist ANT above for department work."}
           </div>
         )}
         {msgs.map((m, i) => (
@@ -192,19 +192,19 @@ export function ChatPanel({ compact, listen, onSeed }: { compact?: boolean; list
             </div>
           </div>
         ))}
-        {busy && <div className="text-[12px] font-semibold text-muted">{antName} is thinking…</div>}
+        {busy && <div className="text-[12px] font-semibold text-muted">{antName} is thinkingâ€¦</div>}
         {error && <div className="rounded-2xl bg-bad-soft px-3.5 py-2.5 text-[12px] text-bad">{error}</div>}
       </div>
 
       {msgs.some((m) => m.role === "assistant") && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2 text-[11.5px]">
-          <span className="font-semibold text-muted">{savedId ? "Saved to ANT Requests ✓" : "Save to ANT Requests as"}</span>
+          <span className="font-semibold text-muted">{savedId ? "Saved to ANT Requests âœ“" : "Save to ANT Requests as"}</span>
           {!savedId && (
             <>
-              <button type="button" className="btn btn-sm" disabled={saving} onClick={() => save("Completed")}>
+              <button type="button" className="btn btn-sm min-h-8 whitespace-nowrap" disabled={saving} onClick={() => save("Completed")}>
                 Completed
               </button>
-              <button type="button" className="btn btn-sm" disabled={saving} onClick={() => save("Pending")}>
+              <button type="button" className="btn btn-sm min-h-8 whitespace-nowrap" disabled={saving} onClick={() => save("Pending")}>
                 Pending
               </button>
             </>
@@ -230,7 +230,7 @@ export function ChatPanel({ compact, listen, onSeed }: { compact?: boolean; list
             }
           }}
           rows={compact ? 2 : 3}
-          placeholder={configured === false ? "AI not connected yet" : `Message ${antName}…`}
+          placeholder={configured === false ? "AI not connected yet" : `Message ${antName}â€¦`}
           aria-label="Message"
           className="field scroll-thin max-h-40 min-h-[44px] flex-1 resize-y"
         />

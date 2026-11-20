@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CardHead, Select, StatusPill } from "@/components/ui";
+import { CardHead, Select, StatusPill, useShowAll } from "@/components/ui";
 import type { ChecklistRecord } from "@/lib/productivity-types";
 import { fmtDT, plural } from "@/lib/utils";
 import { isoWeekOfKey, weekRangeText } from "@/lib/productivity-logic";
@@ -38,6 +38,8 @@ export function SummariesView({ checklists, onReview }: { checklists: ChecklistR
   const list = submitted.filter((c) => member === "all" || c.member === member);
   const pending = list.filter((c) => c.approval !== "Approved");
   const approved = list.filter((c) => c.approval === "Approved");
+  const [pendingShown, pendingToggle] = useShowAll(pending, 9);
+  const [approvedShown, approvedToggle] = useShowAll(approved, 9);
 
   return (
     <div className="space-y-6">
@@ -69,7 +71,7 @@ export function SummariesView({ checklists, onReview }: { checklists: ChecklistR
         <CardHead eyebrow="Review queue" title="Submitted checklists" />
         <div className="mt-4 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {pending.length ? (
-            pending.map((c) => <SummaryCard key={c.id} c={c} onReview={onReview} />)
+            pendingShown.map((c) => <SummaryCard key={c.id} c={c} onReview={onReview} />)
           ) : (
             <div className="col-span-full rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">
               {submitted.length
@@ -80,13 +82,14 @@ export function SummariesView({ checklists, onReview }: { checklists: ChecklistR
             </div>
           )}
         </div>
+        {pendingToggle}
       </section>
 
       <section className="card p-6">
         <CardHead eyebrow="Sign-off" title="Approved summaries" />
         <div className="mt-4 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {approved.length ? (
-            approved.map((c) => <SummaryCard key={c.id} c={c} onReview={onReview} />)
+            approvedShown.map((c) => <SummaryCard key={c.id} c={c} onReview={onReview} />)
           ) : (
             <div className="col-span-full rounded-2xl bg-plane p-6 text-center text-[12.5px] text-muted">
               {weekKey === PENDING
@@ -95,6 +98,7 @@ export function SummariesView({ checklists, onReview }: { checklists: ChecklistR
             </div>
           )}
         </div>
+        {approvedToggle}
       </section>
     </div>
   );

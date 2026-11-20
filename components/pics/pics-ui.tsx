@@ -243,7 +243,7 @@ export function ChecklistRow({
           onEdit();
         }
       }}
-      className="flex cursor-pointer items-center gap-3 rounded-xl bg-white px-3 py-2.5 ring-1 ring-line hover:ring-line-2"
+      className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3 py-2 ring-1 ring-line hover:ring-line-2"
     >
       <input
         type="checkbox"
@@ -255,13 +255,17 @@ export function ChecklistRow({
       />
       <span className={cx("size-2 shrink-0 rounded-full", dot)} title={status} />
       <span className="min-w-0 flex-1">
-        <span className="block text-[12.5px] font-semibold leading-snug">{item}</span>
-        {sub && <span className="block text-[11px] text-muted">{sub}</span>}
+        <span className="line-clamp-2 block text-[12.5px] font-semibold leading-snug" title={item}>
+          {item}
+        </span>
+        <span className="block truncate text-[11px] text-muted" title={sub ? `${sub} · ${due ? fmtShort(due) : "No due date"}` : undefined}>
+          {sub ? `${sub} · ` : ""}
+          {due ? fmtShort(due) : "No due date"}
+        </span>
       </span>
-      <span className="hidden shrink-0 text-[11px] font-semibold text-muted sm:inline">{due ? fmtShort(due) : "No due date"}</span>
       <button
         type="button"
-        className="btn btn-sm shrink-0"
+        className="btn btn-sm shrink-0 whitespace-nowrap px-3"
         onClick={(e) => {
           e.stopPropagation();
           onEdit();

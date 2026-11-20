@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react";
 import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
 import { DataSourceBadge, type Source } from "@/components/DataSource";
-import { Donut, DonutLegend, SERIES, type DonutDatum } from "@/components/charts";
+import { Donut, SERIES, type DonutDatum } from "@/components/charts";
 import { IconLayers, IconPlus } from "@/components/icons";
 import { CardHead, useToast } from "@/components/ui";
 import {
@@ -377,6 +377,7 @@ export function PicsOperations({
     value: records.filter((r) => r.type === t).length,
     color: SERIES[i % SERIES.length],
   }));
+  const mixTotal = typeMix.reduce((sum, d) => sum + d.value, 0);
 
   // Stage tiles follow the Airtable Stage choices; any stage on a record that isn't a choice is appended.
   // OPS-4: "Execution & Implementation" duplicates the Execution and Implementation tiles, so it is hidden.
@@ -387,6 +388,7 @@ export function PicsOperations({
     stageKeys.map((s) => ({ key: s, label: s, count: records.filter((r) => r.stage === s).length })),
   );
 
+  const [sideAll, setSideAll] = useState(false);
   const today = todayISO();
   const upcomingAll = records
     .flatMap((r) => (r.meetings ?? []).map((m) => ({ ...m, parent: r.name })))
@@ -455,14 +457,24 @@ export function PicsOperations({
           {view === "board" ? (
             <>
               {/* Overview row (OPS-1): P.I.C.S Mix + the three activity cards on one row */}
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-                <section className="card p-5">
+              <div className="grid grid-cols-3 items-start gap-3 sm:gap-4 xl:grid-cols-[minmax(0,2.1fr)_repeat(3,minmax(0,1fr))]">
+                <section className="card col-span-3 p-5 xl:col-span-1">
                   <CardHead icon={<IconLayers width={20} height={20} />} title="P.I.C.S Mix" />
-                  <div className="mt-4">
-                    <Donut data={typeMix} size={150} centerLabel="active P.I.C.S" />
-                  </div>
-                  <div className="mt-4">
-                    <DonutLegend data={typeMix} unit="records" />
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3">
+                    <div className="shrink-0">
+                      <Donut data={typeMix} size={150} centerLabel="active" />
+                    </div>
+                    <ul className="grid min-w-[200px] flex-1 gap-1">
+                      {typeMix.map((d) => (
+                        <li key={d.key} className="flex items-center gap-2 text-[12px]" title={d.label}>
+                          <span className="h-2.5 w-3.5 shrink-0 rounded-full" style={{ background: d.color }} />
+                          <span className="flex-1 whitespace-nowrap font-semibold text-ink">{d.label}</span>
+                          <span className="whitespace-nowrap tabular-nums text-ink-2">
+                            {d.value} · {mixTotal ? Math.round((d.value / mixTotal) * 100) : 0}%
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </section>
                 <SummaryTile
@@ -582,9 +594,9 @@ export function PicsOperations({
               )}
 
               {/* Stage tiles (OPS-3): full width, every stage visible */}
-              <section className="card p-6">
+              <section className="card p-5">
                 <CardHead title="Stages" sub="Click a stage to filter the records below; “Active P.I.C.S” clears it." />
-                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                   {tiles.map((t) => {
                     const c = t.key ? (STAGE_COLOR[t.key] ?? "#7B7F8C") : "#15171c";
                     const selected = stage === t.key;
@@ -595,17 +607,17 @@ export function PicsOperations({
                         aria-pressed={selected}
                         onClick={() => setStage(t.key === null ? null : stage === t.key ? null : t.key)}
                         className={cx(
-                          "flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition",
+                          "flex min-w-0 items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition",
                           selected ? "border-brand bg-brand-soft" : "border-line hover:border-line-2 hover:bg-plane",
                         )}
                       >
                         <span
-                          className="grid size-9 shrink-0 place-items-center rounded-xl text-[14px] font-extrabold text-white"
+                          className="grid size-7 shrink-0 place-items-center rounded-lg text-[12.5px] font-extrabold text-white"
                           style={{ background: c }}
                         >
                           {t.count}
                         </span>
-                        <span className="text-[12px] font-semibold leading-tight text-ink">{t.label}</span>
+                        <span className="min-w-0 text-[12px] font-semibold leading-tight text-ink">{t.label}</span>
                       </button>
                     );
                   })}
@@ -675,7 +687,7 @@ export function PicsOperations({
       {view === "board" ? (
         <SidePanel title="Operations" feedTitle="Upcoming meetings">
           {upcomingAll.length ? (
-            upcomingAll.slice(0, 5).map((m, i) => (
+            upcomingAll.slice(0, sideAll ? upcomingAll.length : 6).map((m, i) => (
               <FeedItem
                 key={i}
                 initials={m.facilitator ? initialsOf(m.facilitator) : "MT"}
@@ -687,6 +699,13 @@ export function PicsOperations({
             ))
           ) : (
             <li className="py-4 text-[12.5px] text-muted">No upcoming meetings.</li>
+          )}
+          {upcomingAll.length > 6 && (
+            <li className="pt-1">
+              <button type="button" className="btn btn-sm w-full" onClick={() => setSideAll((v) => !v)}>
+                {sideAll ? "Show less" : `Show all ${upcomingAll.length}`}
+              </button>
+            </li>
           )}
         </SidePanel>
       ) : (
@@ -776,14 +795,14 @@ function SummaryTile({
       type="button"
       aria-expanded={open}
       onClick={onClick}
-      className={cx("card flex flex-col p-5 text-left transition hover:-translate-y-0.5", open && "ring-2 ring-brand")}
+      className={cx("card flex min-w-0 flex-col p-3 text-left transition hover:-translate-y-0.5 sm:p-5", open && "ring-2 ring-brand")}
     >
-      <div className="text-[13px] font-bold">{label}</div>
+      <div className="text-[12px] font-bold leading-tight sm:text-[13px]">{label}</div>
       <div className="mt-2 flex flex-wrap items-end gap-3">
-        <span className="text-[40px] font-extrabold leading-none tracking-tight">{value}</span>
-        <span className={cx("mb-1 rounded-lg px-2 py-1 text-[11px] font-bold", tones[tone])}>{chip}</span>
+        <span className="text-[26px] font-extrabold sm:text-[34px] leading-none tracking-tight">{value}</span>
+        <span className={cx("mb-1 max-w-full truncate rounded-lg px-1.5 py-0.5 text-[10.5px] font-bold sm:px-2 sm:py-1 sm:text-[11px]", tones[tone])}>{chip}</span>
       </div>
-      <div className="mt-auto pt-4 text-[11.5px] font-semibold text-muted">{open ? "Hide list ▴" : "Show list ▾"}</div>
+      <div className="mt-3 text-[11.5px] font-semibold text-brand">{open ? "Hide list ▴" : "Show list ▾"}</div>
     </button>
   );
 }

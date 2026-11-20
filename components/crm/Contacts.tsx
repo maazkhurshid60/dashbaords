@@ -146,7 +146,7 @@ export function Contacts() {
           ))}
         </div>
         <Com id="COM-8" />
-        <input className="field ml-auto w-64" placeholder={`Search ${sec.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="field w-full sm:ml-auto sm:w-64" placeholder={`Search ${sec.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="flex flex-wrap gap-2">
         {stat.map(([l, v]) => (
@@ -213,9 +213,9 @@ export function Contacts() {
       </div>
       {draft && <ViewPanel draft={draft} setDraft={setDraft} count={rows.length} tab="Contacts" onSaved={(id) => { setDraft(null); setViewId(id); }} />}
 
-      <div className="card overflow-x-auto">
+      <div className="card scroll-thin max-h-[640px] overflow-auto">
         <table className="w-full text-[13px]">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b border-line text-left text-[11.5px] text-muted">
               {COLS[sec].map(([k, l]) => (
                 <th key={k} className="cursor-pointer px-3 py-2 font-semibold" onClick={() => setSort((s) => ({ k, dir: s.k === k ? (-s.dir as 1 | -1) : 1 }))}>

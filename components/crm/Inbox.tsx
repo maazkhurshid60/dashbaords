@@ -75,7 +75,7 @@ export function Inbox() {
 
       <div className="grid gap-4 lg:grid-cols-[220px_340px_1fr]">
         {/* rail (COM-6 / COM-30) */}
-        <nav className="space-y-4 text-[13px]">
+        <nav className="scroll-thin max-h-[300px] space-y-4 overflow-y-auto text-[13px] lg:max-h-[680px]">
           <div>
             <div className="eyebrow mb-1">
               Views
@@ -133,7 +133,7 @@ export function Inbox() {
         </nav>
 
         {/* list */}
-        <section className="card flex min-h-[520px] flex-col overflow-hidden">
+        <section className="card flex h-[460px] flex-col overflow-hidden lg:h-[680px]">
           <header className="space-y-2 border-b border-line p-3">
             <div className="flex items-center justify-between">
               <span className="font-bold">
@@ -180,7 +180,7 @@ export function Inbox() {
         </section>
 
         {/* reader */}
-        <section className="card min-h-[520px] overflow-hidden">{cur ? <Reader key={cur.id} m={cur} /> : <div className="p-6"><Empty>Pick a message to read it.</Empty></div>}</section>
+        <section className="card h-[560px] overflow-hidden lg:h-[680px]">{cur ? <Reader key={cur.id} m={cur} /> : <div className="p-6"><Empty>Pick a message to read it.</Empty></div>}</section>
       </div>
     </div>
   );
@@ -219,7 +219,7 @@ function Reader({ m }: { m: Msg }) {
           {m.assigneeIds[0] && <Chip tone="teal">→ {name(m.assigneeIds[0])}</Chip>}
           <DueChip m={m} />
         </div>
-        <div className="mt-2 flex gap-4 text-[13px]">
+        <div className="scroll-thin mt-2 flex gap-4 overflow-x-auto whitespace-nowrap text-[13px]">
           {tabs.map(([id, l]) => (
             <button key={id} type="button" onClick={() => setTab(id)} className={cx("border-b-2 pb-2", tab === id ? "border-brand font-semibold text-brand" : "border-transparent text-ink-2")}>
               {l}

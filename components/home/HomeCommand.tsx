@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
 import { DataSourceBadge, type Source } from "@/components/DataSource";
 import { IconArrowRight } from "@/components/icons";
-import { CardHead, Select, useToast } from "@/components/ui";
+import { CardHead, Select, useShowAll, useToast } from "@/components/ui";
 import { DepartmentWiki } from "@/components/home/DepartmentWiki";
 import { GoalPreview } from "@/components/home/GoalPreview";
 import type { Department, Goal, HomeData, Target, Tool } from "@/lib/home-data";
@@ -66,9 +66,9 @@ export function HomeCommand({ view, data, source }: { view: HomeView; data: Home
         title="Home Command"
         feedTitle="Company updates"
         footnote=""
+        empty="No published announcements right now."
       >
-        {data.updates.length ? (
-          data.updates.map((u, i) => (
+        {data.updates.map((u, i) => (
             <FeedItem
               key={`${i}-${u.text}`}
               initials={UPDATE_INITIALS[u.dept] ?? u.dept.slice(0, 2).toUpperCase()}
@@ -79,10 +79,7 @@ export function HomeCommand({ view, data, source }: { view: HomeView; data: Home
                 </>
               }
             />
-          ))
-        ) : (
-          <li className="py-4 text-[12.5px] text-muted">No published announcements right now.</li>
-        )}
+          ))}
       </SidePanel>
     </div>
   );
@@ -132,12 +129,12 @@ function NoMatch({ text = "Nothing matches your search." }: { text?: string }) {
 
 /* Tool mark: the Tool Library logo when there is one, else the brand glyph. */
 function ToolMark({ tool, size }: { tool: Pick<Tool, "glyph" | "color" | "logo">; size: "sm" | "lg" }) {
-  const box = size === "lg" ? "size-16 rounded-[20px] text-[24px] shadow-card" : "size-[18px] rounded-full text-[9px]";
+  const box = size === "lg" ? "size-11 rounded-[14px] text-[18px] shadow-card" : "size-[18px] rounded-full text-[9px]";
   if (tool.logo)
     return (
       // Airtable attachment URLs are short-lived and aren't in next/image remotePatterns.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={tool.logo} alt="" loading="lazy" className={cx(box, "shrink-0 bg-white object-contain", size === "lg" && "p-2.5")} />
+      <img src={tool.logo} alt="" loading="lazy" className={cx(box, "shrink-0 bg-white object-contain", size === "lg" && "p-1.5")} />
     );
   return (
     <span className={cx(box, "grid shrink-0 place-items-center font-bold text-white")} style={{ background: tool.color }}>
@@ -245,7 +242,7 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
 
       <section className="card p-6">
         <CardHead eyebrow="Jump in" title="Intranet Navigation" sub="Only pages that exist in the intranet · whole card is the link" />
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
           {navCards.length ? (
             navCards.map((n) => (
               <TargetLink
@@ -253,13 +250,13 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
                 target={n.target}
                 label={n.title}
                 className={cx(
-                  "flex items-center justify-between gap-3 rounded-[20px] border px-5 py-4 transition hover:-translate-y-0.5 hover:shadow-card",
+                  "flex min-w-0 items-center justify-between gap-2 rounded-2xl border px-3.5 py-3 transition sm:px-5 sm:py-3.5 hover:-translate-y-0.5 hover:shadow-card",
                   n.highlight ? "border-transparent bg-brand-soft" : "border-line bg-white",
                 )}
               >
-                <span>
-                  <span className="block text-[14px] font-extrabold">{n.title}</span>
-                  {n.sub && n.sub !== "Soon" && <span className="mt-0.5 block text-[11.5px] font-semibold text-muted">{n.sub}</span>}
+                <span className="min-w-0">
+                  <span className="block text-[13.5px] font-extrabold leading-snug">{n.title}</span>
+                  {n.sub && n.sub !== "Soon" && <span className="mt-0.5 line-clamp-1 block text-[11px] font-semibold text-muted">{n.sub}</span>}
                 </span>
                 <TargetHint target={n.target} />
               </TargetLink>
@@ -279,13 +276,14 @@ function Overview({ has, data }: { has: Has; data: HomeData }) {
 function Departments({ has, data }: { has: Has; data: HomeData }) {
   const list = data.departments.filter((d) => has(d.name, d.desc, ...d.tools, ...(d.heads ?? [])));
   const [open, setOpen] = useState<Department | null>(null);
+  const [visible, toggle] = useShowAll(list, 12);
   return (
     <section className="card p-6">
       <DepartmentWiki key={open?.name} dept={open} data={data} onClose={() => setOpen(null)} />
       <CardHead eyebrow="Find your team" title="Departments" sub="Select a department to open its wiki — hierarchy, dashboards, tools and team resources in one place." />
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {list.length ? (
-          list.map((d) => (
+          visible.map((d) => (
             <button
               key={d.id ?? d.name}
               type="button"
@@ -293,15 +291,15 @@ function Departments({ has, data }: { has: Has; data: HomeData }) {
               aria-label={`${d.name} — open Department Wiki`}
               className="group flex flex-col overflow-hidden rounded-[20px] border border-line bg-white text-left transition hover:-translate-y-0.5 hover:shadow-card"
             >
-              <div className="flex items-center gap-3 px-5 pt-5">
-                <span className="flex items-center gap-2.5 text-[16px] font-extrabold">
-                  <span className="h-6 w-1.5 rounded-full" style={{ background: d.color }} />
+              <div className="flex items-center gap-3 px-4 pt-4">
+                <span className="flex items-center gap-2.5 text-[15px] font-extrabold">
+                  <span className="h-5 w-1.5 rounded-full" style={{ background: d.color }} />
                   {d.name}
                 </span>
               </div>
-              {d.desc && <p className="px-5 pt-3 text-[12.5px] leading-relaxed text-ink-2">{d.desc}</p>}
+              {d.desc && <p className="line-clamp-2 px-4 pt-2 text-[12px] leading-snug text-ink-2" title={d.desc}>{d.desc}</p>}
               {d.members != null && (
-                <div className="flex flex-wrap gap-1.5 px-5 pt-3 text-[11.5px] font-bold">
+                <div className="flex flex-wrap gap-1 px-4 pt-2 text-[11px] font-bold">
                   {[
                     `${d.members} members`,
                     `${d.tools.length} tools`,
@@ -315,15 +313,15 @@ function Departments({ has, data }: { has: Has; data: HomeData }) {
                 </div>
               )}
               {!!d.heads?.length && (
-                <p className="px-5 pt-2 text-[11.5px] text-muted">
+                <p className="truncate px-4 pt-1.5 text-[11.5px] text-muted">
                   Head{d.heads.length > 1 ? "s" : ""}: {d.heads.join(", ")}
                 </p>
               )}
-              <div className="mt-auto px-5 pb-5 pt-4">
+              <div className="mt-auto px-4 pb-4 pt-3">
                 <div className="field-label">Related tools</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1">
                   {d.tools.length === 0 && <span className="text-[11.5px] text-muted">None linked in the Tool Library</span>}
-                  {d.tools.map((tn) => {
+                  {d.tools.slice(0, 5).map((tn) => {
                     const t = data.tools.find((x) => x.name === tn);
                     return (
                       <span key={tn} className="chip gap-1.5 pl-1">
@@ -332,6 +330,11 @@ function Departments({ has, data }: { has: Has; data: HomeData }) {
                       </span>
                     );
                   })}
+                  {d.tools.length > 5 && (
+                    <span className="chip" title={d.tools.slice(5).join(", ")}>
+                      +{d.tools.length - 5} more
+                    </span>
+                  )}
                 </div>
               </div>
             </button>
@@ -340,6 +343,7 @@ function Departments({ has, data }: { has: Has; data: HomeData }) {
           <NoMatch />
         )}
       </div>
+      {toggle}
     </section>
   );
 }
@@ -348,9 +352,17 @@ function Departments({ has, data }: { has: Has; data: HomeData }) {
 
 function Tools({ has, data }: { has: Has; data: HomeData }) {
   const [dept, setDept] = useState("");
+  const [find, setFind] = useState("");
+  const f = find.trim().toLowerCase();
   const depts = [...new Set(data.tools.flatMap((t) => t.departments))].sort();
-  const list = data.tools.filter((t) => (!dept || t.departments.includes(dept)) && has(t.name, t.desc ?? "", ...(t.layers ?? []), ...t.departments));
-  const tile = "flex flex-col items-center rounded-[20px] bg-plane px-3 pb-4 pt-5 text-center";
+  const list = data.tools.filter(
+    (t) =>
+      (!dept || t.departments.includes(dept)) &&
+      has(t.name, t.desc ?? "", ...(t.layers ?? []), ...t.departments) &&
+      (!f || [t.name, t.desc ?? "", ...t.departments].some((x) => x.toLowerCase().includes(f))),
+  );
+  const [visible, toggle] = useShowAll(list, 20);
+  const tile = "flex min-w-0 flex-col items-center rounded-2xl bg-plane px-2.5 pb-3 pt-3.5 text-center";
   return (
     <section className="card p-6">
       <CardHead
@@ -358,23 +370,33 @@ function Tools({ has, data }: { has: Has; data: HomeData }) {
         title="Tools"
         sub="Every tool from Airtable › Tool Library (Tool Name · Tool Logo · Product Description · Tool URL). Select a tool to open it."
         right={
-          <Select
-            label="Filter by department"
-            value={dept}
-            onChange={setDept}
-            options={[{ value: "", label: "All departments" }, ...depts.map((d) => ({ value: d, label: d }))]}
-          />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <input
+              type="search"
+              value={find}
+              onChange={(e) => setFind(e.target.value)}
+              placeholder="Search tools…"
+              aria-label="Search tools"
+              className="field h-9 min-w-0 flex-1 py-0 sm:w-48 sm:flex-none"
+            />
+            <Select
+              label="Filter by department"
+              value={dept}
+              onChange={setDept}
+              options={[{ value: "", label: "All departments" }, ...depts.map((d) => ({ value: d, label: d }))]}
+            />
+          </div>
         }
       />
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {list.length ? (
-          list.map((t) => {
+          visible.map((t) => {
             const body = (
               <>
                 <ToolMark tool={t} size="lg" />
-                <span className="mt-3 text-[14px] font-extrabold">{t.name}</span>
-                {t.desc && <span className="mt-1 line-clamp-3 text-[11.5px] leading-snug text-ink-2">{t.desc}</span>}
-                <span className="mt-2 flex flex-wrap justify-center gap-1">
+                <span className="mt-2 line-clamp-1 text-[13px] font-extrabold" title={t.name}>{t.name}</span>
+                {t.desc && <span className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ink-2" title={t.desc}>{t.desc}</span>}
+                <span className="mt-1.5 flex flex-wrap justify-center gap-1">
                   {t.departments.length ? (
                     t.departments.map((d) => (
                       <span key={d} className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: data.deptColors[d] ?? "#6b7280" }}>
@@ -413,6 +435,7 @@ function Tools({ has, data }: { has: Has; data: HomeData }) {
           <NoMatch />
         )}
       </div>
+      {toggle}
     </section>
   );
 }
@@ -423,18 +446,21 @@ function Resources({ has, data }: { has: Has; data: HomeData }) {
   const res = data.resources.filter((r) => has(r.name, r.detail ?? ""));
   const docs = data.docs.filter((d) => has(d.title, d.category, d.desc, ...d.departments));
   const subs = data.subDashboards.filter((r) => has(r.name));
-  const tile = "flex min-h-[92px] flex-col justify-between rounded-[20px] border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-card";
+  const tile = "flex min-h-[72px] min-w-0 flex-col justify-between gap-1 rounded-2xl border border-line bg-white p-3.5 transition hover:-translate-y-0.5 hover:shadow-card";
+  const [resShown, resToggle] = useShowAll(res, 9);
+  const [docsShown, docsToggle] = useShowAll(docs, 8);
+  const [subsShown, subsToggle] = useShowAll(subs, 8);
   return (
     <>
       <section className="card p-6">
         <CardHead eyebrow="Support" title="Team Resources" />
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
           {res.length ? (
-            res.map((r) => (
+            resShown.map((r) => (
               <TargetLink key={r.name} target={r.target} label={r.name} className={tile}>
                 <span>
-                  <span className="block text-[14px] font-extrabold">{r.name}</span>
-                  {r.detail && <span className="mt-0.5 block text-[11.5px] font-semibold text-muted">{r.detail}</span>}
+                  <span className="block text-[13.5px] font-extrabold leading-snug">{r.name}</span>
+                  {r.detail && <span className="mt-0.5 line-clamp-2 block text-[11.5px] font-semibold text-muted">{r.detail}</span>}
                 </span>
                 <TargetHint target={r.target} />
               </TargetLink>
@@ -443,6 +469,7 @@ function Resources({ has, data }: { has: Has; data: HomeData }) {
             <NoMatch />
           )}
         </div>
+        {resToggle}
       </section>
       {data.docs.length > 0 && (
         <section className="card p-6">
@@ -452,12 +479,12 @@ function Resources({ has, data }: { has: Has; data: HomeData }) {
           />
           <div className="mt-5 grid gap-3 md:grid-cols-2">
             {docs.length ? (
-              docs.map((d) => (
+              docsShown.map((d) => (
                 <TargetLink
                   key={d.id}
                   target={d.target}
                   label={d.title}
-                  className="flex flex-col gap-1.5 rounded-[20px] border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-card"
+                  className="flex min-w-0 flex-col gap-1 rounded-2xl border border-line bg-white p-3.5 transition hover:-translate-y-0.5 hover:shadow-card"
                 >
                   <span className="flex items-start justify-between gap-3">
                     <span className="text-[13.5px] font-extrabold leading-snug">{d.title}</span>
@@ -474,13 +501,14 @@ function Resources({ has, data }: { has: Has; data: HomeData }) {
               <NoMatch />
             )}
           </div>
+          {docsToggle}
         </section>
       )}
       <section className="card p-6">
         <CardHead eyebrow="Productivity Center" title="Sub-Dashboards" />
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {subs.length ? (
-            subs.map((r) => (
+            subsShown.map((r) => (
               <TargetLink key={r.name} target={r.target} label={r.name} className={tile}>
                 <span className="text-[14px] font-extrabold">{r.name}</span>
                 <TargetHint target={r.target} />
@@ -490,6 +518,7 @@ function Resources({ has, data }: { has: Has; data: HomeData }) {
             <NoMatch />
           )}
         </div>
+        {subsToggle}
       </section>
     </>
   );

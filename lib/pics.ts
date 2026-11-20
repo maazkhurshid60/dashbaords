@@ -126,7 +126,7 @@ export const ASSET_TYPES = ["Web", "Report", "Feature", "Code", "Video", "Docume
 export const ITEM_TYPES = ["Task", "Deliverable"];
 
 export const CHECKLIST_PAGE_SIZE = 10;
-export const CAL_CHECKLIST_PAGE_SIZE = 10;
+export const CAL_CHECKLIST_PAGE_SIZE = 8;
 
 /* Heatmap buckets: 0 · 1–2 · 3–5 · 6+ → index into the HEAT ramp. */
 export const heatBucket = (n: number) => (n <= 0 ? 0 : n <= 2 ? 1 : n <= 5 ? 2 : 3);
