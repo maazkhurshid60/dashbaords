@@ -170,7 +170,7 @@ export function mountPicsCard(host: HTMLElement, opts: CardEngineOptions): CardE
   let gridAll = false;
   function renderGrid(){
     const recs = inDept().filter(p => typeFilter==='All' || p.type===typeFilter);
-    const LIM = 12, shown = gridAll ? recs : recs.slice(0, LIM);
+    const LIM = (window.innerWidth < 640 ? 6 : 12), shown = gridAll ? recs : recs.slice(0, LIM);
     const more = recs.length > LIM ? `<div style="grid-column:1/-1;text-align:center"><button class="btn" data-grid-more="1">${gridAll ? 'Show fewer' : 'Show all (' + recs.length + ')'}</button></div>` : '';
     $('#grid').innerHTML = recs.length ? shown.map(cardHTML).join('') + more : `<div class="empty">No ${typeFilter} records.</div>`;
   }

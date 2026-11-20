@@ -266,7 +266,7 @@ export function WebsiteView() {
             {dism.map((f, i) => (
               <span key={f.id}>
                 {i > 0 && " · "}
-                <button type="button" className="underline" onClick={() => act.finding(f.id)}>
+                <button type="button" className="inline-flex min-h-8 items-center underline" onClick={() => act.finding(f.id)}>
                   {f.asset}
                 </button>
               </span>

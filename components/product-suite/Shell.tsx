@@ -55,7 +55,7 @@ export function HiddenNote({ list }: { list: [string | string[], string][] }) {
   ) : (
     <div className="border-t border-dashed border-line-2 pt-3 text-[12px] text-muted">
       Not shown until Omni adds the Airtable fields they read: {names}.{" "}
-      <button type="button" className="font-semibold text-brand underline" onClick={act.preview}>
+      <button type="button" className="inline-flex min-h-8 items-center px-1 font-semibold text-brand underline" onClick={act.preview}>
         Preview these designs
       </button>
     </div>

@@ -218,7 +218,7 @@ export function TopBar({
             </kbd>
           </label>
         )}
-        <button type="button" aria-label="Notifications" className="relative shrink-0 text-muted hover:text-ink">
+        <button type="button" aria-label="Notifications" className="relative grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-plane hover:text-ink">
           <IconBell width={21} height={21} />
           <span className="absolute right-0 top-0 size-2 rounded-full bg-brand ring-2 ring-white" />
         </button>
