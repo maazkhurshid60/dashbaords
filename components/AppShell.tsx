@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const isActive = (href?: string) => !!href && (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"));
+  if (path === "/login") return <>{children}</>;
 
   return (
     <div className="flex min-h-screen bg-shell">
@@ -279,6 +280,9 @@ function SettingsMenu() {
           <p className="mt-1 text-[12px] leading-relaxed text-ink-2">Operations, P.I.C.S roadmaps and team productivity in one place.</p>
           <a href={AIRTABLE_BASE_URL} target="_blank" rel="noopener" className="btn btn-dark mt-4 h-9 w-full">
             Open Airtable
+          </a>
+          <a href="/api/login" className="btn mt-2 h-9 w-full">
+            Sign out
           </a>
         </div>
       )}

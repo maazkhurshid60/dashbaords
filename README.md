@@ -30,6 +30,7 @@ Every page reads the Airtable base **VCG Intranet** (`appLH1D7ME6mU1zgE`) on the
 AIRTABLE_TOKEN=pat…            # scopes: data.records:read, data.records:write, schema.bases:read
 AIRTABLE_BASE_ID=appLH1D7ME6mU1zgE
 ANTHROPIC_API_KEY=sk-ant-…     # optional: AI chat (/api/chat). Without it the route returns 503.
+SITE_PASSWORD=…              # optional: team password. When set, every page and API needs it (30-day sign-in). Unset = open.
 ```
 
 | Page | Loader | Write routes |
@@ -43,7 +44,7 @@ Shared client: `lib/airtable.server.ts`. Every write passes an explicit allow-li
 
 Not wired yet: Vercel deployments/redeploy on Product (`/api/product/deploy` returns 501 until a Vercel token is added), Google Calendar.
 
-**Before deploying:** there is no login yet, and the write routes change real Airtable data. Add authentication first.
+**Before deploying:** set `SITE_PASSWORD` — the write routes change real Airtable data. It is one shared password (proxy.ts); per-person accounts would need a proper auth provider.
 
 ## Structure
 
