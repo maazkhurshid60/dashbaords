@@ -3,6 +3,7 @@ import { PicsOperations } from "@/components/pics/PicsOperations";
 import { loadPics } from "@/lib/pics-live";
 import { loadPicsCard } from "@/lib/pics-card";
 import { packCard, packOps } from "@/lib/pics-pack";
+import { isPicsTab } from "@/lib/pics-tabs";
 
 export const metadata: Metadata = { title: "P.I.C.S Operations" };
 
@@ -12,9 +13,13 @@ export const metadata: Metadata = { title: "P.I.C.S Operations" };
    Data is read live from Airtable, falling back to the bundled snapshot. Both datasets are packed
    (lib/pics-pack.ts) so the page doesn't ship the same records twice. */
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [{ open }, { data, live, syncedAt, error }, card] = await Promise.all([searchParams, loadPics(), loadPicsCard()]);
+  const [{ open, tab, stage }, { data, live, syncedAt, error }, card] = await Promise.all([searchParams, loadPics(), loadPicsCard()]);
+  // ?tab=<section> picks the Operations sub-page; a deep link (?open=) lands on Records, where the card opens.
+  const initialTab = isPicsTab(tab) ? tab : typeof open === "string" ? "records" : "overview";
   return (
     <PicsOperations
+      initialTab={initialTab}
+      initialStage={typeof stage === "string" ? stage : null}
       initialOpenId={typeof open === "string" ? open : null}
       data={packOps(data, card.data)}
       source={{ live, syncedAt, error }}
