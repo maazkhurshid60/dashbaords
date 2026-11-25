@@ -388,7 +388,6 @@ export function PicsOperations({
     stageKeys.map((s) => ({ key: s, label: s, count: records.filter((r) => r.stage === s).length })),
   );
 
-  const [sideAll, setSideAll] = useState(false);
   const today = todayISO();
   const upcomingAll = records
     .flatMap((r) => (r.meetings ?? []).map((m) => ({ ...m, parent: r.name })))
@@ -684,31 +683,7 @@ export function PicsOperations({
         </div>
       </main>
 
-      {view === "board" ? (
-        <SidePanel title="Operations" feedTitle="Upcoming meetings">
-          {upcomingAll.length ? (
-            upcomingAll.slice(0, sideAll ? upcomingAll.length : 6).map((m, i) => (
-              <FeedItem
-                key={i}
-                initials={m.facilitator ? initialsOf(m.facilitator) : "MT"}
-                name={m.label}
-                text={`${fmtDT(m.date)} · ${m.parent}`}
-                online={!!m.link}
-                onClick={m.link ? () => window.open(m.link, "_blank", "noopener") : undefined}
-              />
-            ))
-          ) : (
-            <li className="py-4 text-[12.5px] text-muted">No upcoming meetings.</li>
-          )}
-          {upcomingAll.length > 6 && (
-            <li className="pt-1">
-              <button type="button" className="btn btn-sm w-full" onClick={() => setSideAll((v) => !v)}>
-                {sideAll ? "Show less" : `Show all ${upcomingAll.length}`}
-              </button>
-            </li>
-          )}
-        </SidePanel>
-      ) : (
+      {view !== "board" && (
         <SidePanel title="Operations" feedTitle="Latest reports">
           {recentReports.map((r) => (
             <FeedItem
@@ -766,13 +741,6 @@ export function PicsOperations({
   );
 }
 
-function initialsOf(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("");
-}
 
 function SummaryTile({
   label,
