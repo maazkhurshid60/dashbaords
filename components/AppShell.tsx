@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const isActive = (href?: string) => !!href && (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"));
-  if (path === "/login") return <>{children}</>;
+  if (path === "/login" || path.startsWith("/shared/")) return <>{children}</>;
 
   return (
     <div className="flex min-h-screen bg-shell">

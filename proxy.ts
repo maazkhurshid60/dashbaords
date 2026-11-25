@@ -8,6 +8,8 @@ export async function proxy(req: NextRequest) {
   if (!pw) return NextResponse.next();
   const { pathname, search } = req.nextUrl;
   if (pathname === "/login" || pathname === "/api/login") return NextResponse.next();
+  // Shared P.I.C.S links are opened by people without the team password; that page checks its own link token.
+  if (pathname.startsWith("/shared/")) return NextResponse.next();
   const have = req.cookies.get(AUTH_COOKIE)?.value || "";
   if (have && sameToken(have, await authToken(pw))) return NextResponse.next();
   if (pathname.startsWith("/api/")) return NextResponse.json({ ok: false, message: "Sign in required" }, { status: 401 });

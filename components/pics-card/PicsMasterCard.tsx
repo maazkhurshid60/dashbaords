@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { CardData, CardDashboard, CardPics, CardSource } from "@/lib/pics-card-types";
 import { mountPicsCard } from "./engine";
-import type { CardEngineHandle, PersistRequest, SharePayload } from "./types";
+import type { CardEngineHandle, PersistRequest, SharePayload, ShareResult } from "./types";
 
 /* P.I.C.S Master Card v2 — the reusable master component (OPS-6 → OPS-24, PRD-6/PRD-8).
    Renders the prototype engine in a shadow root and wires its write hooks to /api/pics/card/*.
@@ -61,7 +61,7 @@ export function PicsMasterCard({
       if (!source.live) throw new Error("Snapshot data — not saved to Airtable (Airtable is unreachable)");
       return call<{ id: string }>(id ? "PATCH" : "POST", `/api/pics/card/${kind}${id ? `/${id}` : ""}`, { patch, audit: { dashboard, area } });
     };
-    const share = (payload: SharePayload) => call<{ ok: boolean; message?: string }>("POST", "/api/pics/share", payload);
+    const share = (payload: SharePayload) => call<ShareResult>("POST", "/api/pics/share", payload);
     handle.current = mountPicsCard(host.current, {
       data: structuredClone(data),
       dept,
