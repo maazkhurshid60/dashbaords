@@ -6,7 +6,7 @@
    activities, new reports) update the UI optimistically and save through /api/pics/*; a failed save is
    reverted and toasted. Everything else (Task Planning mirror, report chat, snapshot mode) is session-only. */
 import { useEffect, useMemo, useState } from "react";
-import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
+import { PageFooter, TopBar } from "@/components/AppShell";
 import { DataSourceBadge, type Source } from "@/components/DataSource";
 import { Donut, SERIES, type DonutDatum } from "@/components/charts";
 import { IconLayers, IconPlus } from "@/components/icons";
@@ -433,7 +433,6 @@ export function PicsOperations({
     .flatMap((rec) => rec.checklist.flatMap((c, idx) => (c.done ? [] : [{ c, idx, rec }])))
     .sort((a, b) => Number(b.c.status === "overdue") - Number(a.c.status === "overdue") || (a.c.due ?? "9").localeCompare(b.c.due ?? "9"));
   const overdue = records.reduce((s, r) => s + r.checklist.filter((c) => c.status === "overdue").length, 0);
-  const recentReports = [...reports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   /* ---------- detail modal wiring ---------- */
   const open = openId ? byId[openId] : undefined;
@@ -682,20 +681,6 @@ export function PicsOperations({
           <PageFooter meta="VCG Intranet — Master Design System" />
         </div>
       </main>
-
-      {tab === "reports" && (
-        <SidePanel title="Operations" feedTitle="Latest reports">
-          {recentReports.map((r) => (
-            <FeedItem
-              key={r.id}
-              initials={r.preparedBy.slice(0, 4)}
-              name={r.title}
-              text={`${r.reportType} · ${r.status} · ${fmt(r.date)}`}
-              onClick={() => setDialog({ kind: "report", id: r.id })}
-            />
-          ))}
-        </SidePanel>
-      )}
 
       {open && handlers && (
         <RecordDetail record={open} relationship={relationship(open, byId)} onClose={() => setOpenId(null)} h={handlers} />
