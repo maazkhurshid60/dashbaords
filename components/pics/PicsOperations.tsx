@@ -5,8 +5,8 @@
    Edits that map to a real Airtable field (stage, new P.I.C.S, checklist items, roadmap rows, review
    activities, new reports) update the UI optimistically and save through /api/pics/*; a failed save is
    reverted and toasted. Everything else (Task Planning mirror, report chat, snapshot mode) is session-only. */
-import { useMemo, useState } from "react";
-import { FeedItem, PageFooter, SidePanel, TopBar } from "@/components/AppShell";
+import { useEffect, useMemo, useState } from "react";
+import { PageFooter, TopBar } from "@/components/AppShell";
 import { DataSourceBadge, type Source } from "@/components/DataSource";
 import { Donut, SERIES, type DonutDatum } from "@/components/charts";
 import { IconLayers, IconPlus } from "@/components/icons";
@@ -31,10 +31,9 @@ import { PicsMasterCard } from "@/components/pics-card/PicsMasterCard";
 import type { CardPics, CardSource } from "@/lib/pics-card-types";
 import { unpackCard, unpackOps, type PackedCard, type PackedOps } from "@/lib/pics-pack";
 import { ReportBuildChat } from "./ReportBuildChat";
-import { SAVED_TOAST, StagePill, TypeBadge } from "./pics-ui";
+import { SAVED_TOAST } from "./pics-ui";
+import { PICS_TABS, isPicsTab, type PicsTab } from "@/lib/pics-tabs";
 
-type View = "board" | "reporting";
-type Panel = "active" | "checklist" | "meetings";
 const HIDDEN_STAGE = "Execution & Implementation";
 type Dialog =
   | { kind: "newPics" }
@@ -57,12 +56,16 @@ const tmpId = () => `tmp_${Date.now()}_${++tmpSeq}`;
 
 
 export function PicsOperations({
+  initialTab = "overview",
+  initialStage = null,
   initialOpenId,
   data: packedData,
   source,
   card: packedCard,
   cardSource,
 }: {
+  initialTab?: PicsTab;
+  initialStage?: string | null;
   initialOpenId?: string | null;
   data: PackedOps;
   source: Source;
@@ -88,23 +91,59 @@ export function PicsOperations({
     setReports(structuredClone(data.reports));
   }
 
-  const [view, setView] = useState<View>("board");
+  // Which section ("sub-page") is showing. It lives in the URL (?tab=…&stage=…) so every section has its own link
+  // and the back button works; the data and edit state below stay shared, so switching sections never reloads or loses anything.
+  const [tab, setTab] = useState<PicsTab>(initialTab);
   // Choice lists: live Airtable select choices / Departments, or the snapshot lists (lib/pics-options.ts).
   const options = data.options;
-  const [type, setType] = useState<string>(() => (data.options.types.includes("Project") ? "Project" : "All"));
-  const [stage, setStage] = useState<string | null>(null);
-  const [panel, setPanel] = useState<Panel | null>(null);
+  const [stage, setStage] = useState<string | null>(initialStage);
   const [query, setQuery] = useState("");
   const [reportFilter, setReportFilter] = useState("All");
-  // Deep link: /pics?open=<picsId> opens that record's master card on load (handled by PicsMasterCard).
+  // Deep link: /pics?open=<picsId> opens that record's master card once, when Records first shows (handled by PicsMasterCard).
+  const [pendingOpen, setPendingOpen] = useState<string | null>(initialOpenId ?? null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [cardOpen, setCardOpen] = useState<{ id: string; n: number } | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   // Collapse state for phase / month / review / checklist groups, keyed "recId::groupKey" (collapsed by default).
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [checklistPages, setChecklistPages] = useState<Record<string, number>>({});
   const [chatOpen, setChatOpen] = useState(false);
   const [chat, setChat] = useState<ReportChatState>(EMPTY_CHAT);
+
+  /* ---------- sections in the URL ---------- */
+  const writeUrl = (next: PicsTab, nextStage: string | null, mode: "push" | "replace") => {
+    const u = new URL(window.location.href);
+    u.searchParams.delete("open");
+    if (next === "overview") u.searchParams.delete("tab");
+    else u.searchParams.set("tab", next);
+    if (nextStage) u.searchParams.set("stage", nextStage);
+    else u.searchParams.delete("stage");
+    const url = u.pathname + u.search + u.hash;
+    if (mode === "push") window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
+  };
+  const goTo = (next: PicsTab, nextStage: string | null = null) => {
+    setTab(next);
+    setStage(nextStage);
+    setPendingOpen(null);
+    writeUrl(next, nextStage, "push");
+    window.scrollTo({ top: 0 });
+  };
+  const chooseStage = (next: string | null) => {
+    setStage(next);
+    writeUrl(tab, next, "replace");
+  };
+  // Back / forward buttons: follow the URL.
+  useEffect(() => {
+    const sync = () => {
+      const p = new URLSearchParams(window.location.search);
+      const t = p.get("tab");
+      setTab(isPicsTab(t) ? t : "overview");
+      setStage(p.get("stage"));
+      setPendingOpen(null); // a deep-linked card opens once, not every time you come back to Records
+    };
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
 
   const byId = useMemo(() => Object.fromEntries(records.map((r) => [r.id, r])), [records]);
   const tpIds = useMemo(() => new Set(taskPlanning.map((e) => e.id)), [taskPlanning]);
@@ -164,8 +203,7 @@ export function PicsOperations({
       ...rs.map((p) => (rec.parentId && p.id === rec.parentId ? { ...p, childIds: [...(p.childIds ?? []), rec.id] } : p)),
       rec,
     ]);
-    setType(rec.type);
-    setStage(null);
+    chooseStage(null);
     setDialog(null);
     if (!live) return;
     const temp = rec.id;
@@ -357,10 +395,7 @@ export function PicsOperations({
 
   /* ---------- filtering ---------- */
   const q = query.trim().toLowerCase();
-  const matches = (r: PicsRecord) =>
-    !q || [r.name, r.type, r.stage, ...r.depts, ...r.leads.map((l) => l.i)].some((v) => v.toLowerCase().includes(q));
-  const list = records.filter((r) => (type === "All" || r.type === type) && (!stage || r.stage === stage) && matches(r));
-  // Same stage + search narrowing for the master card grid.
+  // Stage + search narrowing for the master card grid.
   const cardFilter = useMemo(
     () =>
       !q && !stage
@@ -388,7 +423,6 @@ export function PicsOperations({
     stageKeys.map((s) => ({ key: s, label: s, count: records.filter((r) => r.stage === s).length })),
   );
 
-  const [sideAll, setSideAll] = useState(false);
   const today = todayISO();
   const upcomingAll = records
     .flatMap((r) => (r.meetings ?? []).map((m) => ({ ...m, parent: r.name })))
@@ -398,9 +432,7 @@ export function PicsOperations({
   const openItems = records
     .flatMap((rec) => rec.checklist.flatMap((c, idx) => (c.done ? [] : [{ c, idx, rec }])))
     .sort((a, b) => Number(b.c.status === "overdue") - Number(a.c.status === "overdue") || (a.c.due ?? "9").localeCompare(b.c.due ?? "9"));
-  const togglePanel = (p: Panel) => setPanel((cur) => (cur === p ? null : p));
   const overdue = records.reduce((s, r) => s + r.checklist.filter((c) => c.status === "overdue").length, 0);
-  const recentReports = [...reports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   /* ---------- detail modal wiring ---------- */
   const open = openId ? byId[openId] : undefined;
@@ -434,27 +466,22 @@ export function PicsOperations({
               P.I.C.S Operations <DataSourceBadge source={source} />
             </span>
           }
-          search={view === "board" ? "Search P.I.C.S…" : "Search reports…"}
+          search={tab === "records" ? "Search P.I.C.S…" : tab === "reports" ? "Search reports…" : undefined}
           query={query}
           onQuery={setQuery}
         />
 
         <div className="space-y-6 px-5 pb-10 pt-4 sm:px-8">
-          {/* Main view tabs (renderMainTabs / setMainView) */}
-          <div className="seg" role="group" aria-label="View">
-            {(
-              [
-                ["board", "P.I.C.S"],
-                ["reporting", "Reports"],
-              ] as const
-            ).map(([k, l]) => (
-              <button key={k} type="button" aria-pressed={view === k} onClick={() => setView(k)}>
+          {/* Sections of the dashboard: each is its own link (?tab=…) */}
+          <div className="seg" role="group" aria-label="Section">
+            {PICS_TABS.map(([k, l]) => (
+              <button key={k} type="button" aria-pressed={tab === k} onClick={() => goTo(k)}>
                 {l}
               </button>
             ))}
           </div>
 
-          {view === "board" ? (
+          {tab === "overview" && (
             <>
               {/* Overview row (OPS-1): P.I.C.S Mix + the three activity cards on one row */}
               <div className="grid grid-cols-3 items-start gap-3 sm:gap-4 xl:grid-cols-[minmax(0,2.1fr)_repeat(3,minmax(0,1fr))]">
@@ -477,121 +504,87 @@ export function PicsOperations({
                     </ul>
                   </div>
                 </section>
-                <SummaryTile
-                  label="Active P.I.C.S"
-                  value={records.length}
-                  chip={`${list.length} in view`}
-                  tone="brand"
-                  open={panel === "active"}
-                  onClick={() => togglePanel("active")}
-                />
-                <SummaryTile
-                  label="Open checklist items"
-                  value={checklistOpen}
-                  chip={`${overdue} overdue`}
-                  tone="bad"
-                  open={panel === "checklist"}
-                  onClick={() => togglePanel("checklist")}
-                />
-                <SummaryTile
-                  label="Upcoming meetings"
-                  value={upcomingAll.length}
-                  chip="from today"
-                  tone="good"
-                  open={panel === "meetings"}
-                  onClick={() => togglePanel("meetings")}
-                />
+                <SummaryTile label="Active P.I.C.S" value={records.length} chip="all records" tone="brand" onClick={() => goTo("records")} />
+                <SummaryTile label="Open checklist items" value={checklistOpen} chip={`${overdue} overdue`} tone="bad" onClick={() => goTo("checklists")} />
+                <SummaryTile label="Upcoming meetings" value={upcomingAll.length} chip="from today" tone="good" onClick={() => goTo("meetings")} />
               </div>
+            </>
+          )}
 
-              {/* OPS-2: the clicked activity card's list opens directly underneath */}
-              {panel && (
-                <section className="card p-5 sm:p-6">
-                  <CardHead
-                    title={panel === "active" ? "Active P.I.C.S" : panel === "checklist" ? "Open checklist items" : "Upcoming meetings"}
-                    right={
-                      <button type="button" className="btn btn-sm" onClick={() => setPanel(null)}>
-                        Close
+          {/* Checklists section: what used to expand under the "Open checklist items" tile */}
+          {tab === "checklists" && (
+            <section className="card p-5 sm:p-6">
+              <CardHead title="Open checklist items" sub={`${checklistOpen} open · ${overdue} overdue — overdue first, click one to edit it`} />
+              <ul className="mt-4 max-h-[640px] space-y-1.5 overflow-y-auto">
+                {openItems.length ? (
+                  openItems.map(({ c, idx, rec }) => (
+                    <li key={`${rec.id}-${idx}`}>
+                      <button
+                        type="button"
+                        onClick={() => setDialog({ kind: "editChecklist", recId: rec.id, idx })}
+                        className={cx(
+                          "flex w-full flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-left",
+                          c.status === "overdue" ? "bg-bad-soft" : "bg-plane hover:bg-brand-soft",
+                        )}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-bold">{c.item}</span>
+                          <span className="block text-[11px] text-muted">{rec.name}</span>
+                        </span>
+                        <span className="text-[11px] text-muted">{c.due ? `Due ${fmt(c.due)}` : "No due date"}</span>
+                        {c.status === "overdue" && <span className="rounded-lg bg-bad px-2 py-0.5 text-[10.5px] font-bold text-white">Overdue</span>}
                       </button>
-                    }
-                  />
-                  <ul className="mt-4 max-h-[420px] space-y-1.5 overflow-y-auto">
-                    {panel === "active" &&
-                      records.map((r) => (
-                        <li key={r.id}>
-                          <button
-                            type="button"
-                            onClick={() => setCardOpen((o) => ({ id: r.id, n: (o?.n ?? 0) + 1 }))}
-                            className="flex w-full flex-wrap items-center gap-3 rounded-2xl bg-plane px-4 py-3 text-left hover:bg-brand-soft"
-                          >
-                            <TypeBadge type={r.type} />
-                            <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{r.name}</span>
-                            <span className="text-[11px] text-muted">
-                              {fmt(r.start)} → {fmt(r.end)}
-                            </span>
-                            <StagePill stage={r.stage} />
-                          </button>
-                        </li>
-                      ))}
-                    {panel === "checklist" &&
-                      (openItems.length ? (
-                        openItems.map(({ c, idx, rec }) => (
-                          <li key={`${rec.id}-${idx}`}>
-                            <button
-                              type="button"
-                              onClick={() => setDialog({ kind: "editChecklist", recId: rec.id, idx })}
-                              className={cx(
-                                "flex w-full flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-left",
-                                c.status === "overdue" ? "bg-bad-soft" : "bg-plane hover:bg-brand-soft",
-                              )}
-                            >
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[13px] font-bold">{c.item}</span>
-                                <span className="block text-[11px] text-muted">{rec.name}</span>
-                              </span>
-                              <span className="text-[11px] text-muted">{c.due ? `Due ${fmt(c.due)}` : "No due date"}</span>
-                              {c.status === "overdue" && (
-                                <span className="rounded-lg bg-bad px-2 py-0.5 text-[10.5px] font-bold text-white">Overdue</span>
-                              )}
-                            </button>
-                          </li>
-                        ))
-                      ) : (
-                        <li className="py-4 text-[12.5px] text-muted">No open checklist items.</li>
-                      ))}
-                    {panel === "meetings" &&
-                      (upcomingAll.length ? (
-                        upcomingAll.map((m, i) => {
-                          const body = (
-                            <>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[13px] font-bold">{m.label}</span>
-                                <span className="block text-[11px] text-muted">
-                                  {m.parent}
-                                  {m.facilitator ? ` · ${m.facilitator}` : ""}
-                                </span>
-                              </span>
-                              <span className="text-[11.5px] font-semibold text-ink-2">{fmtDT(m.date)}</span>
-                            </>
-                          );
-                          const cls = "flex w-full flex-wrap items-center gap-3 rounded-2xl bg-plane px-4 py-3";
-                          return (
-                            <li key={i}>
-                              {m.link ? (
-                                <a href={m.link} target="_blank" rel="noopener" className={cx(cls, "hover:bg-brand-soft")}>
-                                  {body}
-                                </a>
-                              ) : (
-                                <div className={cls}>{body}</div>
-                              )}
-                            </li>
-                          );
-                        })
-                      ) : (
-                        <li className="py-4 text-[12.5px] text-muted">No upcoming meetings.</li>
-                      ))}
-                  </ul>
-                </section>
-              )}
+                    </li>
+                  ))
+                ) : (
+                  <li className="py-4 text-[12.5px] text-muted">No open checklist items.</li>
+                )}
+              </ul>
+            </section>
+          )}
+
+          {/* Meetings section: what used to expand under the "Upcoming meetings" tile */}
+          {tab === "meetings" && (
+            <section className="card p-5 sm:p-6">
+              <CardHead title="Upcoming meetings" sub={`${upcomingAll.length} from today — soonest first`} />
+              <ul className="mt-4 max-h-[640px] space-y-1.5 overflow-y-auto">
+                {upcomingAll.length ? (
+                  upcomingAll.map((m, i) => {
+                    const body = (
+                      <>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-bold">{m.label}</span>
+                          <span className="block text-[11px] text-muted">
+                            {m.parent}
+                            {m.facilitator ? ` · ${m.facilitator}` : ""}
+                          </span>
+                        </span>
+                        <span className="text-[11.5px] font-semibold text-ink-2">{fmtDT(m.date)}</span>
+                      </>
+                    );
+                    const cls = "flex w-full flex-wrap items-center gap-3 rounded-2xl bg-plane px-4 py-3";
+                    return (
+                      <li key={i}>
+                        {m.link ? (
+                          <a href={m.link} target="_blank" rel="noopener" className={cx(cls, "hover:bg-brand-soft")}>
+                            {body}
+                          </a>
+                        ) : (
+                          <div className={cls}>{body}</div>
+                        )}
+                      </li>
+                    );
+                  })
+                ) : (
+                  <li className="py-4 text-[12.5px] text-muted">No upcoming meetings.</li>
+                )}
+              </ul>
+            </section>
+          )}
+
+          {/* Records section: stages (a filter) + the P.I.C.S Master Card grid */}
+          {tab === "records" && (
+            <>
 
               {/* Stage tiles (OPS-3): full width, every stage visible */}
               <section className="card p-5">
@@ -605,7 +598,7 @@ export function PicsOperations({
                         key={t.label}
                         type="button"
                         aria-pressed={selected}
-                        onClick={() => setStage(t.key === null ? null : stage === t.key ? null : t.key)}
+                        onClick={() => chooseStage(t.key === null ? null : stage === t.key ? null : t.key)}
                         className={cx(
                           "flex min-w-0 items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition",
                           selected ? "border-brand bg-brand-soft" : "border-line hover:border-line-2 hover:bg-plane",
@@ -643,7 +636,7 @@ export function PicsOperations({
                         className="btn btn-sm"
                         onClick={() => {
                           setQuery("");
-                          setStage(null);
+                          chooseStage(null);
                         }}
                       >
                         Clear filters
@@ -659,15 +652,20 @@ export function PicsOperations({
                   source={cardSource}
                   dashboard="PICS Operations"
                   filter={cardFilter}
-                  openId={initialOpenId}
-                  openRequest={cardOpen}
+                  openId={pendingOpen}
                   viewBase="/pics"
                 />
               </section>
-
-              <PicsCalendar records={records} onEditChecklist={(recId, idx) => setDialog({ kind: "editChecklist", recId, idx })} />
             </>
-          ) : (
+          )}
+
+          {/* Calendar section */}
+          {tab === "calendar" && (
+            <PicsCalendar records={records} onEditChecklist={(recId, idx) => setDialog({ kind: "editChecklist", recId, idx })} />
+          )}
+
+          {/* Reports section */}
+          {tab === "reports" && (
             <ReportsView
               reports={reports}
               byId={byId}
@@ -683,44 +681,6 @@ export function PicsOperations({
           <PageFooter meta="VCG Intranet — Master Design System" />
         </div>
       </main>
-
-      {view === "board" ? (
-        <SidePanel title="Operations" feedTitle="Upcoming meetings">
-          {upcomingAll.length ? (
-            upcomingAll.slice(0, sideAll ? upcomingAll.length : 6).map((m, i) => (
-              <FeedItem
-                key={i}
-                initials={m.facilitator ? initialsOf(m.facilitator) : "MT"}
-                name={m.label}
-                text={`${fmtDT(m.date)} · ${m.parent}`}
-                online={!!m.link}
-                onClick={m.link ? () => window.open(m.link, "_blank", "noopener") : undefined}
-              />
-            ))
-          ) : (
-            <li className="py-4 text-[12.5px] text-muted">No upcoming meetings.</li>
-          )}
-          {upcomingAll.length > 6 && (
-            <li className="pt-1">
-              <button type="button" className="btn btn-sm w-full" onClick={() => setSideAll((v) => !v)}>
-                {sideAll ? "Show less" : `Show all ${upcomingAll.length}`}
-              </button>
-            </li>
-          )}
-        </SidePanel>
-      ) : (
-        <SidePanel title="Operations" feedTitle="Latest reports">
-          {recentReports.map((r) => (
-            <FeedItem
-              key={r.id}
-              initials={r.preparedBy.slice(0, 4)}
-              name={r.title}
-              text={`${r.reportType} · ${r.status} · ${fmt(r.date)}`}
-              onClick={() => setDialog({ kind: "report", id: r.id })}
-            />
-          ))}
-        </SidePanel>
-      )}
 
       {open && handlers && (
         <RecordDetail record={open} relationship={relationship(open, byId)} onClose={() => setOpenId(null)} h={handlers} />
@@ -766,43 +726,33 @@ export function PicsOperations({
   );
 }
 
-function initialsOf(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("");
-}
 
 function SummaryTile({
   label,
   value,
   chip,
   tone,
-  open,
   onClick,
 }: {
   label: string;
   value: number;
   chip: string;
   tone: "brand" | "bad" | "good";
-  open: boolean;
   onClick: () => void;
 }) {
   const tones = { brand: "bg-brand-soft text-brand", bad: "bg-bad-soft text-bad", good: "bg-good-soft text-good" };
   return (
     <button
       type="button"
-      aria-expanded={open}
       onClick={onClick}
-      className={cx("card flex min-w-0 flex-col p-3 text-left transition hover:-translate-y-0.5 sm:p-5", open && "ring-2 ring-brand")}
+      className="card flex min-w-0 flex-col p-3 text-left transition hover:-translate-y-0.5 sm:p-5"
     >
       <div className="text-[12px] font-bold leading-tight sm:text-[13px]">{label}</div>
       <div className="mt-2 flex flex-wrap items-end gap-3">
         <span className="text-[26px] font-extrabold sm:text-[34px] leading-none tracking-tight">{value}</span>
         <span className={cx("mb-1 max-w-full truncate rounded-lg px-1.5 py-0.5 text-[10.5px] font-bold sm:px-2 sm:py-1 sm:text-[11px]", tones[tone])}>{chip}</span>
       </div>
-      <div className="mt-3 text-[11.5px] font-semibold text-brand">{open ? "Hide list ▴" : "Show list ▾"}</div>
+      <div className="mt-3 text-[11.5px] font-semibold text-brand">Open →</div>
     </button>
   );
 }

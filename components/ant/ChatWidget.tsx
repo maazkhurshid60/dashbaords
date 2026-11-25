@@ -16,7 +16,7 @@ export function ChatWidget() {
   const show = useCallback(() => setOpen(true), []);
   const onAnt = path === "/ant" || path.startsWith("/ant/");
   const onPics = path === "/pics" || path.startsWith("/pics/");
-  if (onAnt || path === "/login") return null;
+  if (onAnt || path === "/login" || path.startsWith("/shared/")) return null;
   return (
     <>
       {!open && (

@@ -15,12 +15,23 @@ export interface PersistRequest {
 export interface SharePayload {
   kind: "pics" | "fb";
   id: string;
+  /** Display name of the thing being shared (used in the invite email). */
+  name?: string;
   invites: { who: string; role: string; external: boolean }[];
   access: string;
   expiry: string;
   include: Record<string, boolean>;
   message: string;
   link: string;
+}
+
+export interface ShareResult {
+  ok: boolean;
+  message?: string;
+  /** One private link per invited person. */
+  links?: { who: string; role: string; external: boolean; link: string }[];
+  /** Set when access is "anyone with the link". */
+  anyoneLink?: string | null;
 }
 
 export interface CardEngineOptions {
@@ -40,7 +51,7 @@ export interface CardEngineOptions {
   /** Path used for "Copy view-only link" / share links, e.g. /pics. */
   viewBase?: string;
   persist?: (req: PersistRequest) => Promise<{ id: string } | null>;
-  share?: (payload: SharePayload) => Promise<{ ok: boolean; message?: string }>;
+  share?: (payload: SharePayload) => Promise<ShareResult>;
 }
 
 export interface CardEngineHandle {

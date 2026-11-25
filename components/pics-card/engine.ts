@@ -882,6 +882,9 @@ export function mountPicsCard(host: HTMLElement, opts: CardEngineOptions): CardE
         <div class="sh-acc"><select id="shAccess"><option value="restricted" ${s.access==='restricted'?'selected':''}>Restricted — only people added above</option><option value="link" ${s.access==='link'?'selected':''}>Anyone with the link can view</option></select>
         <select id="shExpiry">${['7 days','30 days','90 days','Never'].map(x=>`<option ${x===s.expiry?'selected':''}>${x}</option>`).join('')}</select></div>
         <div class="sh-link"><span class="mono">${esc(s.link)}</span><button type="button" class="btn sm" data-shcopy>Copy link</button></div></div>
+      ${(s.sent && s.sent.length) || s.anyone ? `<div class="rsec"><h5>Links to send</h5><div class="muted" style="font-size:11.5px;margin-bottom:6px">Each person has their own private link. Copy it and send it to them — it only opens for that person${s.anyone ? ', and the "anyone" link opens for everyone' : ''}.</div>
+        ${(s.sent||[]).map((p,i)=>`<div class="sh-link"><span class="mono"><b>${esc(p.who)}</b> · ${esc(p.role)}<br>${esc(p.link)}</span><button type="button" class="btn sm" data-shcopyp="${i}">Copy</button></div>`).join('')}
+        ${s.anyone ? `<div class="sh-link"><span class="mono"><b>Anyone with the link</b> · Viewer<br>${esc(s.anyone)}</span><button type="button" class="btn sm" data-shcopyp="any">Copy</button></div>` : ''}</div>` : ''}
       <div class="field rsec"><label>Message (optional)</label><textarea id="shMsg" rows="2" placeholder="Add context for the people you're sharing with…"></textarea></div>
       <div class="rsec"><h5>Export</h5><div class="row"><button type="button" class="btn sm" data-shsum>Copy summary</button><button type="button" class="btn sm" data-shprint>Print / Save as PDF</button><button type="button" class="btn sm" data-shmail>Email link</button></div></div>`;
   }
@@ -893,10 +896,12 @@ export function mountPicsCard(host: HTMLElement, opts: CardEngineOptions): CardE
   /* WRITE-BACK HOOK — POST /api/share */
   function sharePics(payload){
     if (!opts.share) { toast('Sharing invites are not available yet'); return Promise.resolve(false); }
-    return opts.share(payload).then(r => { toast(r.message || (r.ok ? 'Shared' : 'Sharing invites are not available yet')); return !!r.ok; }).catch(e => { toast(e && e.message || 'Share failed'); return false; });
+    return opts.share(payload).then(r => { toast(r.message || (r.ok ? 'Shared' : 'Sharing invites are not available yet'));
+      if (r.ok && SH){ SH.sent = r.links || []; SH.anyone = r.anyoneLink || null; }
+      return !!r.ok; }).catch(e => { toast(e && e.message || 'Share failed'); return false; });
   }
   document.addEventListener('click', e => {
-    const t = e.target.closest('[data-shadd],[data-shrm],[data-shcopy],[data-shsum],[data-shprint],[data-shmail],#shSend,#shCancel'); if (!t || !SH) return;
+    const t = e.target.closest('[data-shadd],[data-shrm],[data-shcopy],[data-shcopyp],[data-shsum],[data-shprint],[data-shmail],#shSend,#shCancel'); if (!t || !SH) return;
     const d = t.dataset;
     if (d.shadd !== undefined){ const v = $('#shWho').value.trim(); if (!v) return $('#shWho').focus(); const internal = OPT.team.includes(v); const email = /\S+@\S+\.\S+/.test(v);
       if (!internal && !email) return toast('Pick a team member or enter an email address'); if (SH.people.some(p=>p.who===v)) return toast('Already has access');
@@ -908,10 +913,12 @@ export function mountPicsCard(host: HTMLElement, opts: CardEngineOptions): CardE
     if (d.shprint !== undefined){ const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print'); w.document.write(`<title>${esc(SH.name)}</title><pre style="font:14px/1.5 system-ui;white-space:pre-wrap;padding:24px">${esc(shareSummary())}</pre>`); w.document.close(); w.print(); return; }
     if (t.id==='shCancel') return closeLayer('shOv');
     if (t.id==='shSend'){ const invites = SH.people.filter(p=>!p.owner); if (!invites.length && SH.access==='restricted') return toast('Add someone or switch to link access');
-      const sh = SH; sharePics({kind:SH.kind, id:SH.id, invites, access:SH.access, expiry:SH.expiry, include:SH.include, message:$('#shMsg').value, link:SH.link}).then(ok => { if (!ok || destroyed || SH !== sh) return;
+      const sh = SH; sharePics({kind:SH.kind, id:SH.id, name:SH.name, invites, access:SH.access, expiry:SH.expiry, include:SH.include, message:$('#shMsg').value, link:SH.link}).then(ok => { if (!ok || destroyed || SH !== sh) return;
       const log = {kind:'Shared', when:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}), who:CURRENT_USER, text:`${invites.map(p=>p.who+' ('+p.role+')').join(', ')||'link access'} · ${SH.access==='link'?'anyone with link':'restricted'} · expires ${SH.expiry}`};
       if (SH.kind==='fb'){ const f = fbById(SH.id); f.log = [...(f.log||[]), log]; if (FBD && FBD.id===f.id){ FBD.log = f.log; renderFeedback(); } }
+      if ((sh.sent && sh.sent.length) || sh.anyone){ renderShare(); return; }  // keep the dialog open so the personal links can be copied
       closeLayer('shOv'); }); }
+    if (d.shcopyp !== undefined){ const l = d.shcopyp==='any' ? SH.anyone : (SH.sent||[])[+d.shcopyp]?.link; if (l){ navigator.clipboard?.writeText(l).catch(()=>{}); toast('Link copied'); } return; }
   });
   document.addEventListener('change', e => {
     if (!SH) return; const t = e.target;
