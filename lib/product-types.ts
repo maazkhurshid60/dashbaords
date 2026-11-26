@@ -269,6 +269,10 @@ export interface Site {
   uptime: UptimeDay[];
   vitals: { lcp: number | null; inp: number | null; cls: number | null } | null;
   errorRate: number | null;
+  /** Whether the server has Vercel credentials and can safely enable deployment controls. */
+  deploymentsConfigured?: boolean;
+  /** A safe Vercel connection error; never includes the token. */
+  deploymentError?: string;
   live?: boolean;
 }
 

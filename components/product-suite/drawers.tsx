@@ -126,6 +126,7 @@ export function ManageDrawer() {
   const { D, drawer, closeAll, act } = useSuite();
   if (drawer?.kind !== "manage") return null;
   const deps = D.site.deployments || [];
+  const deploymentControlsEnabled = D.site.deploymentsConfigured === true;
   return (
     <Sheet
       open
@@ -145,7 +146,9 @@ export function ManageDrawer() {
         <b>Redeploy</b> rebuilds the current live version. <b>Roll back</b> puts an older version back on the live site. <b>Promote</b> takes a test
         copy and makes it live. Each one asks you to type ACRYLICS first and is recorded in Releases &amp; Deployment Log.
       </p>
-      <button type="button" className="btn btn-brand mb-3 mt-4" onClick={() => act.deploy("redeploy")}>
+      {!deploymentControlsEnabled && <p className="mt-3 text-[12px] font-semibold text-muted">Vercel deployment controls will be available after the server credentials are configured.</p>}
+      {D.site.deploymentError && <p className="mt-2 text-[12px] text-bad">Vercel: {D.site.deploymentError}</p>}
+      <button type="button" className="btn btn-brand mb-3 mt-4" onClick={() => act.deploy("redeploy")} disabled={!deploymentControlsEnabled}>
         Redeploy live site
       </button>
       {deps.map((d) => (
@@ -156,7 +159,7 @@ export function ManageDrawer() {
             <>
               <StatusPill2 s={d.state} />
               {d.state === "READY" && !d.current ? (
-                <button type="button" className="btn btn-sm" onClick={() => act.deploy(d.target === "production" ? "rollback" : "promote", d.id)}>
+                <button type="button" className="btn btn-sm" onClick={() => act.deploy(d.target === "production" ? "rollback" : "promote", d.id)} disabled={!deploymentControlsEnabled}>
                   {d.target === "production" ? "Roll back" : "Promote"}
                 </button>
               ) : d.current ? (

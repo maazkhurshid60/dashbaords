@@ -587,6 +587,10 @@ function useSuiteEngine(app: AppDef, initial?: SuiteInitial, server?: SuiteServe
         toast("Not connected to Vercel yet — nothing was changed");
         return;
       }
+      if (!D.site.deploymentsConfigured) {
+        toast("Vercel deployment controls are not configured yet - nothing was changed");
+        return;
+      }
       try {
         const j = await api(cfg.ep.deploy, { method: "POST", body: JSON.stringify({ action, deploymentId: dep || null }) }, 20000);
         if (!j.ok) throw new Error(j.error || "failed");
