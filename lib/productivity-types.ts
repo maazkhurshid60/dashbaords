@@ -47,6 +47,8 @@ export interface Meeting {
   recapReady: boolean;
   recapApproved: boolean;
   recapApprover: string | null;
+  /** Meetings Master › Sync to Calendar. This queues Airtable's calendar automation. */
+  calendarSyncRequested?: boolean;
   objectives: string;
   prepStatus: string | null;
   agendaUrl: string | null;

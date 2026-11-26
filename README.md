@@ -42,7 +42,7 @@ SITE_PASSWORD=…              # optional: team password. When set, every page a
 
 Shared client: `lib/airtable.server.ts`. Every write passes an explicit allow-list of fields, and select values must be existing Airtable choices (no new options are created).
 
-Not wired yet: Vercel deployments/redeploy on Product (`/api/product/deploy` returns 501 until a Vercel token is added), Google Calendar.
+Not wired yet: Vercel deployments/redeploy on Product (`/api/product/deploy` returns 501 until a Vercel token is added), Google Calendar automation. The Productivity meeting details button now marks `Meetings Master › Sync to Calendar`; connect that Airtable trigger to Google Calendar to create or update events.
 
 ### Optional: Social Impact grant scraper
 

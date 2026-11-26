@@ -30,8 +30,8 @@ export const CHECKLIST_WRITABLE = [
   "Approved At",
   "Generate Checklist Summary",
 ] as const;
-/** Meetings Master — agenda / recap approval. */
-export const MEETING_WRITABLE = ["Agenda Approved", "Recap Approved"] as const;
+/** Meetings Master — agenda / recap approval and calendar-sync request. */
+export const MEETING_WRITABLE = ["Agenda Approved", "Recap Approved", "Sync to Calendar"] as const;
 /** Master Reports — status (Approved checkbox follows it). */
 export const REPORT_WRITABLE = ["Status", "Approved", "Approved At"] as const;
 

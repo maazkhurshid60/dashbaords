@@ -397,6 +397,7 @@ async function loadLive(): Promise<ProductivityData> {
       recapReady: f(r, "Sync Recap") === true,
       recapApproved: f(r, "Recap Approved") === true,
       recapApprover: joinOrNull(people(r, "Recap Approver")),
+      calendarSyncRequested: f(r, "Sync to Calendar") === true,
       objectives: s(r, "Meeting Objectives"),
       prepStatus: sOrNull(r, "Meeting Status"),
       agendaUrl: sOrNull(r, "Agenda URL"),

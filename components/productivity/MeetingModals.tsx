@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { IconCalendar, IconExternal, IconVideo } from "@/components/icons";
-import { Modal, StatusPill } from "@/components/ui";
+import { Modal, StatusPill, useToast } from "@/components/ui";
 import { fmtFullDate, fmtFullDateWithWeekday, fmtFullTime, fmtKey, parseLocationLink } from "@/lib/productivity-logic";
 import type { Meeting, ReviewKind } from "@/lib/productivity-types";
 import { cx, fmtDT } from "@/lib/utils";
 import { ActionItemsSection } from "./ActionItems";
-import { useProductivity } from "./context";
+import { patchApi, useProductivity } from "./context";
 import { Empty, H, IconClock, IconTimer, Tag, useSessionNote } from "./shared";
 
 /** Department tag tinted with Departments › Department Color; neutral when no color is set. */
@@ -22,6 +22,49 @@ function DeptTag({ name, color }: { name: string; color?: string }) {
 
 function Muted({ children }: { children: string }) {
   return <span className="text-[12px] text-muted">{children}</span>;
+}
+
+/** Marks a meeting for the Airtable automation. It intentionally makes no Google API call. */
+function CalendarSyncRequest({ mt }: { mt: Meeting }) {
+  const toast = useToast();
+  const { writable } = useProductivity();
+  const [requested, setRequested] = useState(Boolean(mt.calendarSyncRequested));
+  const [submitting, setSubmitting] = useState(false);
+
+  const request = async () => {
+    if (requested || submitting) return;
+    setSubmitting(true);
+    setRequested(true);
+    if (!writable) {
+      setSubmitting(false);
+      toast("Calendar sync requested for this session only");
+      return;
+    }
+    try {
+      await patchApi(`meetings/${mt.id}`, { requestCalendarSync: true });
+      toast("Calendar sync requested in Airtable");
+    } catch (e) {
+      setRequested(false);
+      toast(`Couldn't request calendar sync (${e instanceof Error ? e.message : e})`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl border border-line bg-plane/60 p-4">
+      <div className="text-[12.5px] font-extrabold">Google Calendar</div>
+      <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
+        {requested
+          ? "Calendar sync is requested in Airtable. It will run when the calendar automation is connected."
+          : "Mark this meeting for the Airtable calendar automation. No Google key is needed in this dashboard."}
+      </p>
+      <button type="button" className="btn btn-brand btn-sm mt-3" onClick={request} disabled={requested || submitting}>
+        <IconCalendar width={15} height={15} />
+        {submitting ? "Requesting…" : requested ? "Calendar sync requested" : "Request calendar sync"}
+      </button>
+    </div>
+  );
 }
 
 /* ---------------- Shared meeting body (general / agenda / recap) ---------------- */
@@ -136,6 +179,8 @@ export function MeetingDetailBody({
         {arCard("agenda", mt.agendaUrl, mt.agendaAssignee, mt.agendaApprover)}
         {arCard("recap", mt.recapUrl, mt.recapAssignee, mt.recapApprover)}
       </div>
+
+      <CalendarSyncRequest mt={mt} />
 
       <ActionItemsSection meetingId={mt.id} />
     </>
