@@ -1,15 +1,35 @@
-/* GET  /api/social/scraper/run → { configured }
-   POST /api/social/scraper/run → 503 until an Apify token (APIFY_TOKEN) is configured.
-   The scraper actors themselves are not wired yet; this keeps the button honest. */
+import { GrantScraperError, checkGrantScrape, scraperReadiness, startGrantScrape } from "@/lib/social-apify.server";
+
+/*
+ * GET  /api/social/scraper/run               -> configuration readiness
+ * GET  /api/social/scraper/run?run=<runId>   -> Apify run status and import result
+ * POST /api/social/scraper/run               -> start the configured Apify Task
+ *
+ * APIFY_TOKEN and APIFY_TASK_ID remain server-only. The browser receives only
+ * readiness, a run id, and import counts.
+ */
 export const dynamic = "force-dynamic";
 
-const configured = () => !!process.env.APIFY_TOKEN;
-
-export function GET() {
-  return Response.json({ configured: configured() });
+function failure(error: unknown) {
+  const status = error instanceof GrantScraperError ? error.status : 500;
+  if (status >= 500) console.error("[social scraper]", error);
+  return Response.json({ ok: false, error: error instanceof Error ? error.message : "Grant scraper failed" }, { status });
 }
 
-export function POST() {
-  if (!configured()) return Response.json({ ok: false, error: "Apify is not connected yet (APIFY_TOKEN not set)" }, { status: 503 });
-  return Response.json({ ok: false, error: "Scraper run is not implemented yet" }, { status: 501 });
+export async function GET(req: Request) {
+  try {
+    const runId = new URL(req.url).searchParams.get("run");
+    if (!runId) return Response.json(scraperReadiness(), { headers: { "Cache-Control": "no-store" } });
+    return Response.json(await checkGrantScrape(runId), { headers: { "Cache-Control": "no-store" } });
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+export async function POST() {
+  try {
+    return Response.json(await startGrantScrape(), { headers: { "Cache-Control": "no-store" } });
+  } catch (e) {
+    return failure(e);
+  }
 }

@@ -504,9 +504,12 @@ export function PicsOperations({
                     </ul>
                   </div>
                 </section>
-                <SummaryTile label="Active P.I.C.S" value={records.length} chip="all records" tone="brand" onClick={() => goTo("records")} />
-                <SummaryTile label="Open checklist items" value={checklistOpen} chip={`${overdue} overdue`} tone="bad" onClick={() => goTo("checklists")} />
-                <SummaryTile label="Upcoming meetings" value={upcomingAll.length} chip="from today" tone="good" onClick={() => goTo("meetings")} />
+                {/* The three tiles share one row of equal height */}
+                <div className="col-span-3 grid grid-cols-3 items-stretch gap-3 self-start sm:gap-4">
+                  <SummaryTile label="Active P.I.C.S" value={records.length} chip="all records" tone="brand" onClick={() => goTo("records")} />
+                  <SummaryTile label="Open checklist items" value={checklistOpen} chip={`${overdue} overdue`} tone="bad" onClick={() => goTo("checklists")} />
+                  <SummaryTile label="Upcoming meetings" value={upcomingAll.length} chip="from today" tone="good" onClick={() => goTo("meetings")} />
+                </div>
               </div>
             </>
           )}
@@ -745,14 +748,14 @@ function SummaryTile({
     <button
       type="button"
       onClick={onClick}
-      className="card flex min-w-0 flex-col p-3 text-left transition hover:-translate-y-0.5 sm:p-5"
+      className="card flex h-full min-w-0 flex-col p-3 text-left transition hover:-translate-y-0.5 sm:p-5"
     >
       <div className="text-[12px] font-bold leading-tight sm:text-[13px]">{label}</div>
-      <div className="mt-2 flex flex-wrap items-end gap-3">
+      <div className="mt-2 flex flex-col items-start gap-2">
         <span className="text-[26px] font-extrabold sm:text-[34px] leading-none tracking-tight">{value}</span>
-        <span className={cx("mb-1 max-w-full truncate rounded-lg px-1.5 py-0.5 text-[10.5px] font-bold sm:px-2 sm:py-1 sm:text-[11px]", tones[tone])}>{chip}</span>
+        <span className={cx("max-w-full truncate rounded-lg px-1.5 py-0.5 text-[10.5px] font-bold sm:px-2 sm:py-1 sm:text-[11px]", tones[tone])}>{chip}</span>
       </div>
-      <div className="mt-3 text-[11.5px] font-semibold text-brand">Open →</div>
+      <div className="mt-auto pt-3 text-[11.5px] font-semibold text-brand">Open →</div>
     </button>
   );
 }

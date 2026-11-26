@@ -44,6 +44,22 @@ Shared client: `lib/airtable.server.ts`. Every write passes an explicit allow-li
 
 Not wired yet: Vercel deployments/redeploy on Product (`/api/product/deploy` returns 501 until a Vercel token is added), Google Calendar.
 
+### Optional: Social Impact grant scraper
+
+The Social Impact **Run scraper** control remains disabled until these server-only values are configured. Use an Apify **Task**, so the approved grant sources and search settings remain in Apify rather than browser code.
+
+```text
+APIFY_TOKEN=apify_api_...
+APIFY_TASK_ID=...
+# Optional safeguards and Task input override:
+APIFY_MAX_ITEMS=50
+APIFY_MAX_TOTAL_CHARGE_USD=2
+APIFY_WAIT_SECONDS=15
+APIFY_TASK_INPUT_JSON={"...":"..."}
+```
+
+The importer accepts common grant-result field names, skips duplicate source URLs or title/funder pairs, and creates only valid records in Airtable's Grants Scraper Database. Every imported record starts with the `New` triage status. The default—and maximum—cap is 50 rows and US$2 per run.
+
 **Before deploying:** set `SITE_PASSWORD` — the write routes change real Airtable data. It is one shared password (proxy.ts); per-person accounts would need a proper auth provider.
 
 ## Structure
