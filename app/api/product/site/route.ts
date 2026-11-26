@@ -1,5 +1,7 @@
 import tls from "node:tls";
 import { CFG } from "@/lib/product-data";
+import type { Deployment } from "@/lib/product-types";
+import { listVercelDeployments, vercelConfigured } from "@/lib/vercel.server";
 
 /* GET /api/product/site → {ok, site:{url, status, http, ms, checkedAt, ssl, deployments, uptime, vitals, errorRate}}
    A real request to acrylics.world (status + response time) and its TLS certificate. Deployments,
@@ -45,12 +47,26 @@ export async function GET() {
   } catch (e) {
     error = e instanceof Error ? (e.cause instanceof Error ? e.cause.message : e.message) : String(e);
   }
+  const deploymentsConfigured = vercelConfigured();
+  let deployments: Deployment[] = [];
+  let deploymentError: string | undefined;
+  if (deploymentsConfigured) {
+    try {
+      deployments = await listVercelDeployments();
+    } catch (e) {
+      deploymentError = e instanceof Error ? e.message : String(e);
+      console.error("[product site] Vercel deployments", e);
+    }
+  }
   const status = http == null || http >= 500 ? "down" : http >= 400 || (ms ?? 0) > SLOW_MS ? "degraded" : "up";
   const ssl = url.startsWith("https:") ? await certInfo(host) : null;
   return Response.json(
     {
       ok: true,
-      site: { url, status, http, ms, checkedAt: new Date().toISOString(), ssl, deployments: [], uptime: [], vitals: null, errorRate: null, ...(error ? { error } : {}) },
+      site: {
+        url, status, http, ms, checkedAt: new Date().toISOString(), ssl, deployments, uptime: [], vitals: null, errorRate: null, deploymentsConfigured,
+        ...(error ? { error } : {}), ...(deploymentError ? { deploymentError } : {}),
+      },
     },
     { headers: { "Cache-Control": "no-store" } },
   );

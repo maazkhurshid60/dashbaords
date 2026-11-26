@@ -29,6 +29,9 @@ Every page reads the Airtable base **VCG Intranet** (`appLH1D7ME6mU1zgE`) on the
 ```
 AIRTABLE_TOKEN=pat…            # scopes: data.records:read, data.records:write, schema.bases:read
 AIRTABLE_BASE_ID=appLH1D7ME6mU1zgE
+VERCEL_TOKEN=...               # optional: server-only Vercel access token for Product deployment controls
+VERCEL_PROJECT_ID=prj_...      # optional: Vercel project id (or project name)
+VERCEL_TEAM_ID=team_...        # optional: required when the project is owned by a Vercel team
 ANTHROPIC_API_KEY=sk-ant-…     # optional: AI chat (/api/chat). Without it the route returns 503.
 SITE_PASSWORD=…              # optional: team password. When set, every page and API needs it (30-day sign-in). Unset = open.
 ```
@@ -42,7 +45,27 @@ SITE_PASSWORD=…              # optional: team password. When set, every page a
 
 Shared client: `lib/airtable.server.ts`. Every write passes an explicit allow-list of fields, and select values must be existing Airtable choices (no new options are created).
 
-Not wired yet: Vercel deployments/redeploy on Product (`/api/product/deploy` returns 501 until a Vercel token is added), Google Calendar.
+Not wired yet: Vercel deployments/redeploy on Product (`/api/product/deploy` returns 501 until a Vercel token is added), Google Calendar automation. The Productivity meeting details button now marks `Meetings Master › Sync to Calendar`; connect that Airtable trigger to Google Calendar to create or update events.
+
+### Optional: Product Vercel deployment controls
+
+The Product deployment route now supports the existing Redeploy, Promote, and Roll back controls. Until `VERCEL_TOKEN` and `VERCEL_PROJECT_ID` are configured, controls stay disabled and the route returns a clear configuration error without contacting Vercel. When configured, deployment data and actions run only on the server; the Vercel token is never sent to the browser.
+
+### Optional: Social Impact grant scraper
+
+The Social Impact **Run scraper** control remains disabled until these server-only values are configured. Use an Apify **Task**, so the approved grant sources and search settings remain in Apify rather than browser code.
+
+```text
+APIFY_TOKEN=apify_api_...
+APIFY_TASK_ID=...
+# Optional safeguards and Task input override:
+APIFY_MAX_ITEMS=50
+APIFY_MAX_TOTAL_CHARGE_USD=2
+APIFY_WAIT_SECONDS=15
+APIFY_TASK_INPUT_JSON={"...":"..."}
+```
+
+The importer accepts common grant-result field names, skips duplicate source URLs or title/funder pairs, and creates only valid records in Airtable's Grants Scraper Database. Every imported record starts with the `New` triage status. The default—and maximum—cap is 50 rows and US$2 per run.
 
 **Before deploying:** set `SITE_PASSWORD` — the write routes change real Airtable data. It is one shared password (proxy.ts); per-person accounts would need a proper auth provider.
 

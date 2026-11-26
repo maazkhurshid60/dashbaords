@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/AppShell";
 import { DataSourceBadge, type Source } from "@/components/DataSource";
 import { cx } from "@/lib/utils";
@@ -248,17 +249,109 @@ function NailNetworksView({ data }: { data: SocialData }) {
 /* ---------------------------------------------------------------- Grant Scrapers */
 const TRIAGE_TONE: Record<string, "good" | "warn" | "bad" | "brand" | "plain"> = { New: "brand", Qualified: "good", "Saved for Later": "warn", "Not a Fit": "bad", Duplicate: "plain", Expired: "plain" };
 
+type ScraperReadiness = { configured: boolean; missing?: string[]; message?: string };
+type ScraperImport = { received: number; imported: number; duplicates: number; skipped: number; failed: number; errors: string[] };
+type ScraperRun = { ok: boolean; runId: string; status: string; message: string; import?: ScraperImport };
+
+async function scraperRequest(url: string, init?: RequestInit): Promise<ScraperReadiness | ScraperRun> {
+  const res = await fetch(url, { ...init, cache: "no-store" });
+  const body = (await res.json().catch(() => null)) as (ScraperReadiness & Partial<ScraperRun> & { error?: string }) | null;
+  if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+  if (!body) throw new Error("The grant scraper returned an invalid response");
+  return body as ScraperReadiness | ScraperRun;
+}
+
+const terminalRun = (status: string) => !["READY", "RUNNING"].includes(status);
+
 function Scrapers({ data, query }: { data: SocialData; query: string }) {
+  const router = useRouter();
   const [triage, setTriage] = useState("All");
   const [hover, setHover] = useState<string | null>(null);
   const [open, setOpen] = useState<ScraperRow | null>(null);
-  const [apify, setApify] = useState<boolean | null>(null);
+  const [apify, setApify] = useState<ScraperReadiness | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runMessage, setRunMessage] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
   useEffect(() => {
-    fetch("/api/social/scraper/run")
-      .then((r) => r.json())
-      .then((j: { configured?: boolean }) => setApify(!!j.configured))
-      .catch(() => setApify(false));
+    let active = true;
+    scraperRequest("/api/social/scraper/run")
+      .then((j) => active && setApify(j as ScraperReadiness))
+      .catch(() => active && setApify({ configured: false, message: "Could not check the grant scraper connection." }));
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const settleRun = useCallback((run: ScraperRun) => {
+    setRunMessage(run.message);
+    if (run.status === "SUCCEEDED") {
+      setRunning(false);
+      setRunId(null);
+      router.refresh();
+      return;
+    }
+    if (terminalRun(run.status)) {
+      setRunning(false);
+      setRunId(null);
+      setRunError(run.message);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!runId || !running) return;
+    let active = true;
+    let attempts = 0;
+    const poll = async () => {
+      attempts++;
+      try {
+        const next = (await scraperRequest(`/api/social/scraper/run?run=${encodeURIComponent(runId)}`)) as ScraperRun;
+        if (!active) return;
+        settleRun(next);
+        if (attempts >= 40 && !terminalRun(next.status)) {
+          setRunning(false);
+          setRunMessage("The grant scrape is still running in Apify. Check back shortly and run it again only if needed.");
+        }
+      } catch (e) {
+        if (!active) return;
+        setRunning(false);
+        setRunError(e instanceof Error ? e.message : "Could not check the grant scraper status.");
+      }
+    };
+    const timer = window.setInterval(() => void poll(), 3_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [runId, running, settleRun]);
+
+  const runScraper = async () => {
+    if (!apify?.configured || running) return;
+    setRunning(true);
+    setRunError(null);
+    setRunMessage("Starting grant scrape...");
+    try {
+      const run = (await scraperRequest("/api/social/scraper/run", { method: "POST" })) as ScraperRun;
+      setRunId(run.runId);
+      settleRun(run);
+    } catch (e) {
+      setRunning(false);
+      setRunError(e instanceof Error ? e.message : "Could not start the grant scraper.");
+    }
+  };
+
+  const checkScraper = async () => {
+    if (!runId || running) return;
+    setRunning(true);
+    setRunError(null);
+    setRunMessage("Checking grant scraper status...");
+    try {
+      settleRun((await scraperRequest(`/api/social/scraper/run?run=${encodeURIComponent(runId)}`)) as ScraperRun);
+    } catch (e) {
+      setRunning(false);
+      setRunError(e instanceof Error ? e.message : "Could not check the grant scraper status.");
+    }
+  };
   const statuses = useMemo(() => ["All", ...Array.from(new Set(data.scraper.map((s) => s.triage).filter(Boolean)))], [data.scraper]);
   const q = query.trim().toLowerCase();
   const rows = data.scraper
@@ -276,10 +369,21 @@ function Scrapers({ data, query }: { data: SocialData; query: string }) {
             </button>
           ))}
         </div>
-        <button type="button" disabled={!apify} title={apify ? "Run the grant scrapers" : "Apify is not connected yet"} className="btn h-9 disabled:cursor-not-allowed disabled:opacity-60">
-          {apify ? "Run scraper" : "Run scraper · not connected yet"}
+        <button
+          type="button"
+          disabled={!apify?.configured || running}
+          title={apify?.configured ? runId ? "Check the existing grant scraper run" : "Run the grant scrapers" : apify?.message || "Checking grant scraper connection..."}
+          onClick={() => void (runId ? checkScraper() : runScraper())}
+          className="btn h-9 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {running ? "Running scraper..." : runId ? "Check status" : apify?.configured ? "Run scraper" : "Run scraper · not connected yet"}
         </button>
       </div>
+      {(runMessage || runError) && (
+        <div role="status" className={cx("mb-4 rounded-xl px-3 py-2 text-[12.5px]", runError ? "bg-red-50 text-red-700" : "bg-plane text-ink-2")}>
+          {runError || runMessage}
+        </div>
+      )}
       {rows.length ? (
         <div className="overflow-x-auto rounded-2xl bg-white shadow-card">
           <table className="w-full min-w-[760px] text-left text-[12.5px]">
