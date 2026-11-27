@@ -18,7 +18,7 @@ function ago(iso: string, now: number) {
 }
 
 /* "● Live from Airtable · synced 2 min ago ↻" or "● Snapshot data" with the reason on hover.
-   Refresh re-runs the server loaders (router.refresh), which read through the 60s cache. */
+   Refresh drops the Airtable cache (/api/refresh) and re-runs the server loaders, so Airtable edits show at once. */
 export function DataSourceBadge({ source }: { source: Source }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
@@ -42,7 +42,12 @@ export function DataSourceBadge({ source }: { source: Source }) {
       }
       className={`inline-flex size-6 items-center justify-center rounded-full hover:bg-plane ${busy ? "animate-pulse" : ""}`}
       disabled={busy}
-      onClick={() => startRefresh(() => router.refresh())}
+      onClick={() =>
+        startRefresh(async () => {
+          await fetch("/api/refresh", { method: "POST" }).catch(() => null);
+          router.refresh();
+        })
+      }
     >
       <span className={`size-2 rounded-full ${source.live ? "bg-good" : "bg-warn"}`} />
     </button>

@@ -11,7 +11,7 @@ import { revalidateTag } from "next/cache";
 
 export const BASE_ID = process.env.AIRTABLE_BASE_ID || "appLH1D7ME6mU1zgE";
 const API = "https://api.airtable.com/v0";
-const REVALIDATE_S = 60;
+const REVALIDATE_S = 15;
 // Airtable allows 5 requests/second per base; stay under it across all dashboards.
 const MAX_CONCURRENT = 3;
 
@@ -71,6 +71,8 @@ async function call(url: string, init: RequestInit & { next?: { revalidate?: num
 }
 
 export const tableTag = (tableId: string) => `at:${tableId}`;
+/** On every record read, so /api/refresh can drop the whole cache at once. */
+export const ALL_TAG = "at:all";
 
 export interface ListOptions {
   /** Field names (or IDs) to return; omit for all fields. */
@@ -100,7 +102,7 @@ export async function listRecords<F extends Fields = Fields>(tableId: string, op
     });
     if (offset) p.set("offset", offset);
     const page = (await call(`${API}/${BASE_ID}/${tableId}?${p}`, {
-      next: { revalidate: REVALIDATE_S, tags: [tableTag(tableId)] },
+      next: { revalidate: REVALIDATE_S, tags: [tableTag(tableId), ALL_TAG] },
     })) as { records: AtRecord<F>[]; offset?: string };
     out.push(...page.records);
     offset = page.offset;
